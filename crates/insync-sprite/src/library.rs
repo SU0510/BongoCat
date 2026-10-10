@@ -83,7 +83,8 @@ impl SpriteLibrary {
             .map_err(|e| SpriteError::ManifestIo(e.to_string()))?;
         let manifest: ManifestFile = serde_json::from_str(&text)
             .map_err(|e| SpriteError::ManifestParse(e.to_string()))?;
-        Self::build(manifest, &|path| std::fs::read(path).ok())
+        let base = manifest_path.parent().unwrap_or(Path::new("."));
+        Self::build(manifest, &|path| std::fs::read(base.join(path)).ok())
     }
 
     /// Loads a library from in-memory bytes (embedded assets). `sheets`
