@@ -4321,6 +4321,17 @@ version = "0.1.0"
 [[package]]
 name = "insync-client"
 version = "0.1.0"
+dependencies = [
+ "futures-util",
+ "insync-core",
+ "insync-server",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "tokio",
+ "tokio-tungstenite 0.30.0",
+]
 
 [[package]]
 name = "insync-core"
@@ -4336,6 +4347,18 @@ dependencies = [
 [[package]]
 name = "insync-pet-window"
 version = "0.1.0"
+dependencies = [
+ "block2 0.6.2",
+ "image",
+ "objc2 0.6.4",
+ "objc2-app-kit 0.3.2",
+ "objc2-core-foundation",
+ "objc2-core-graphics",
+ "objc2-foundation 0.3.2",
+ "objc2-quartz-core 0.3.2",
+ "thiserror 2.0.21",
+ "windows 0.62.2",
+]
 
 [[package]]
 name = "insync-server"
@@ -4359,6 +4382,13 @@ dependencies = [
 [[package]]
 name = "insync-sprite"
 version = "0.1.0"
+dependencies = [
+ "image",
+ "rand 0.10.3",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+]
 
 [[package]]
 name = "interpolate_name"
