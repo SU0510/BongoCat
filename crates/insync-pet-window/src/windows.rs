@@ -136,7 +136,6 @@ struct WindowThreadState {
     press: Option<(i32, i32)>,
     /// Set while the native caption drag is in flight.
     dragging: bool,
-    shared: Arc<WindowShared>,
 }
 
 fn run_window_thread(
@@ -157,10 +156,7 @@ unsafe fn run_window_thread_inner(
     shared: Arc<WindowShared>,
     delegate: Arc<dyn PetWindowDelegate>,
 ) {
-    // SAFETY: single-threaded Win32 setup and pump; every call below
-    // receives pointers the API documents as valid for its duration and the
-    // thread exclusively owns the window state (see the module docs).
-    unsafe { run_window_thread_body(config, shared, delegate) }
+    run_window_thread_body(config, shared, delegate);
 }
 
 /// The actual setup + pump. Its whole body is one `unsafe` block: every
@@ -171,7 +167,6 @@ fn run_window_thread_body(
     shared: Arc<WindowShared>,
     delegate: Arc<dyn PetWindowDelegate>,
 ) {
-    
     use windows::Win32::System::LibraryLoader::GetModuleHandleW;
     use windows::Win32::UI::WindowsAndMessaging::*;
 
