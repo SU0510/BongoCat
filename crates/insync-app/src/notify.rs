@@ -155,8 +155,11 @@ mod tests {
                 .offer("msg", "t".into(), "b".into(), &settings, 1000)
                 .is_none()
         );
-        settings.notifications_enabled = true;
-        settings.dnd_enabled = true;
+        let settings = Settings {
+            notifications_enabled: true,
+            dnd_enabled: true,
+            ..Settings::default()
+        };
         assert!(
             center
                 .offer("msg", "t".into(), "b".into(), &settings, 1000)
