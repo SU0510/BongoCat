@@ -1,0 +1,44 @@
+[package]
+name = "insync-app"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[[bin]]
+name = "insync-app"
+path = "src/main.rs"
+
+[dependencies]
+insync-core = { workspace = true }
+insync-client = { workspace = true }
+insync-sprite = { workspace = true }
+insync-pet-window = { workspace = true }
+bongocat-audio = { workspace = true }
+bongocat-storage = { workspace = true }
+gpui-kit = { workspace = true }
+image = { workspace = true }
+jiff = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+dirs = { workspace = true }
+thiserror = { workspace = true }
+async-io = { workspace = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+muda = { workspace = true }
+tray-icon = { workspace = true }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+muda = { workspace = true }
+tray-icon = { workspace = true }
+
+[features]
+production = []
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true

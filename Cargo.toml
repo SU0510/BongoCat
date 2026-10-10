@@ -103,7 +103,7 @@ insync-app = { path = "crates/insync-app" }
 argon2 = "=0.6.0"
 axum = { version = "=0.8.9", features = ["ws"] }
 futures-util = "=0.3.34"
-jiff = { version = "=0.2.38", default-features = false, features = ["std", "serde"] }
+jiff = { version = "=0.2.38", default-features = false, features = ["std", "serde", "tz-system", "tzdb-zoneinfo"] }
 rand = "=0.10.3"
 reqwest = { version = "=0.12.28", default-features = false, features = ["json", "rustls-tls"] }
 rusqlite = { version = "=0.40.2", features = ["bundled"] }
