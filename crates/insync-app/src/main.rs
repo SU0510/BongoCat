@@ -2,23 +2,27 @@
 //! and the hub panel inside one GPUI application.
 
 use gpui_kit::{
-    App, Application as GpuiApplication, Global, QuitMode, assets::AllAssets,
-    platform::current_platform,
+    App, Application as GpuiApplication, QuitMode, assets::AllAssets, platform::current_platform,
 };
 use insync_app::app::{Coordinator, tick_app};
 use insync_app::{app::AppCore, assets, hub, pet, tray};
 use std::cell::RefCell;
 
+/// Startup and fatal errors go to stderr as single human-readable lines.
+#[allow(clippy::print_stderr)]
+fn report(line: &str) {
+    eprintln!("{line}");
+}
+
 fn main() {
     let Ok(core) = AppCore::start() else {
-        eprintln!("insync-app: failed to start core services");
+        report("insync-app: failed to start core services");
         std::process::exit(1);
     };
     let core = std::sync::Arc::new(core);
 
     let icon = load_tray_icon();
     let tray = tray::install(icon, &core.language()).ok();
-    let core_for_tray = std::sync::Arc::clone(&core);
     let quit_requested = std::sync::atomic::AtomicBool::new(false);
 
     GpuiApplication::new_inaccessible(current_platform(false))
@@ -42,7 +46,7 @@ fn main() {
             ) {
                 Ok(window) => window,
                 Err(error) => {
-                    eprintln!("insync-app: pet window unavailable: {error}");
+                    report(&format!("insync-app: pet window unavailable: {error}"));
                     return;
                 }
             };
@@ -69,20 +73,19 @@ fn main() {
             });
 
             if let Some(tray) = tray {
-                let core = std::sync::Arc::clone(&core_for_tray);
                 cx.spawn(async move |cx| {
                     loop {
                         if let Some(action) = tray.try_action() {
                             match action {
                                 tray::TrayAction::OpenHub => {
-                                    let _ = cx.update(hub::toggle_hub);
+                                    cx.update(hub::toggle_hub);
                                 }
                                 tray::TrayAction::PokePartner => {
                                     let now = std::time::SystemTime::now()
                                         .duration_since(std::time::UNIX_EPOCH)
                                         .map(|d| d.as_millis() as u64)
                                         .unwrap_or(0);
-                                    let _ = cx.update(|cx| {
+                                    cx.update(|cx| {
                                         if let Some(coord) = cx.try_global::<Coordinator>() {
                                             coord.core.engine.command(
                                                 insync_client::SyncCommand::Enqueue(
@@ -96,33 +99,32 @@ fn main() {
                                     });
                                 }
                                 tray::TrayAction::TogglePetVisible => {
-                                    let _ = cx.update(|cx| {
+                                    cx.update(|cx| {
                                         if let Some(coord) = cx.try_global::<Coordinator>() {
                                             coord.toggle_pet_visible();
                                         }
                                     });
                                 }
                                 tray::TrayAction::Quit => {
-                                    let _ = cx.update(|cx| {
-                                        let _ = core_for_tray;
-                                        cx.quit();
-                                    });
+                                    cx.update(|cx| cx.quit());
                                 }
                             }
                         }
                         async_io_timer(std::time::Duration::from_millis(120)).await;
                     }
-                });
+                })
+                .detach();
             }
 
             // the main loop: pet animation, events, alarms, hub refresh
             cx.spawn(async move |cx| {
                 loop {
-                    let _ = quit_requested;
-                    let _ = cx.update(|cx| tick_app(cx));
+                    let _ = &quit_requested;
+                    cx.update(tick_app);
                     async_io_timer(std::time::Duration::from_millis(80)).await;
                 }
-            });
+            })
+            .detach();
 
             // open the hub once at startup so the user can sign in
             hub::ensure_hub(cx);
