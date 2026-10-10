@@ -171,8 +171,7 @@ fn run_window_thread_body(
     use windows::Win32::UI::WindowsAndMessaging::*;
 
     unsafe {
-        // SAFETY: process-global module handle; no parameters can be invalid.
-        let hinstance = unsafe { GetModuleHandleW(None).unwrap_or_default() };
+        let hinstance = GetModuleHandleW(None).unwrap_or_default();
 
         // A invisible parent keeps the pet out of Alt-Tab; the popup style with
         // WS_EX_TOOLWINDOW does the same. Register the class once per process.
@@ -186,8 +185,7 @@ fn run_window_thread_body(
                 style: CS_HREDRAW | CS_VREDRAW,
                 ..Default::default()
             };
-            // SAFETY: `wc` outlives the call and points to process-static names.
-            let atom = unsafe { RegisterClassW(&wc) };
+            let atom = RegisterClassW(&wc);
             registered_ok = atom != 0;
         });
         if !registered_ok {
@@ -254,13 +252,10 @@ fn run_window_thread_body(
         'pump: loop {
             // drain queued commands between messages; a frame push must not
             // wait for the next message to arrive
-            loop {
-                let command = match state_receiver(hwnd) {
-                    Some(receiver) => match receiver.try_recv() {
-                        Ok(command) => command,
-                        Err(_) => break,
-                    },
-                    None => break,
+            while let Some(receiver) = state_receiver(hwnd) {
+                let command = match receiver.try_recv() {
+                    Ok(command) => command,
+                    Err(_) => break,
                 };
                 if apply_command(hwnd, command) {
                     break 'pump;
@@ -437,11 +432,11 @@ unsafe extern "system" fn pet_wnd_proc(
                 LRESULT(0)
             }
             WM_LBUTTONUP => {
-                if let Some(state) = window_state(hwnd) {
-                    if state.dragging {
-                        state.dragging = false;
-                        report_drag(hwnd, state);
-                    }
+                if let Some(state) = window_state(hwnd)
+                    && state.dragging
+                {
+                    state.dragging = false;
+                    report_drag(hwnd, state);
                 }
                 LRESULT(0)
             }
@@ -570,7 +565,7 @@ unsafe fn update_layered_frame(
         let _ = SelectObject(mem_dc, old_bitmap);
         let _ = DeleteObject(HGDIOBJ(dib.0));
         let _ = DeleteDC(mem_dc);
-        let _ = ReleaseDC(Some(hwnd.into()), screen_dc);
+        let _ = ReleaseDC(Some(hwnd), screen_dc);
         result.map_err(|e| format!("UpdateLayeredWindow failed: {e}"))
     }
 }
