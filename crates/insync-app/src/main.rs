@@ -22,7 +22,6 @@ fn main() {
     let core = std::sync::Arc::new(core);
 
     let icon = load_tray_icon();
-    let tray = tray::install(icon, &core.language()).ok();
     let quit_requested = std::sync::atomic::AtomicBool::new(false);
 
     GpuiApplication::new_inaccessible(current_platform(false))
@@ -32,6 +31,9 @@ fn main() {
             if !cx.has_global::<gpui_kit::component::theme::Theme>() {
                 gpui_kit::init(cx);
             }
+            // tray installation needs a live NSApplication; keep it after
+            // the GPUI platform is up (same order as BongoCat's tray)
+            let tray = tray::install(icon, &core.language()).ok();
             gpui_kit::component::theme::Theme::global_mut(cx)
                 .notification
                 .placement = gpui_kit::Anchor::BottomRight;

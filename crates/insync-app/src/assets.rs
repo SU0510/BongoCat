@@ -77,6 +77,58 @@ pub fn sprite_library() -> &'static SpriteLibrary {
                 "momo/rest.png",
                 include_bytes!("../../../resources/insync/sprites/momo/rest.png"),
             ),
+            (
+                "momo-mint/idle.png",
+                include_bytes!("../../../resources/insync/sprites/momo-mint/idle.png"),
+            ),
+            (
+                "momo-mint/blink.png",
+                include_bytes!("../../../resources/insync/sprites/momo-mint/blink.png"),
+            ),
+            (
+                "momo-mint/wave.png",
+                include_bytes!("../../../resources/insync/sprites/momo-mint/wave.png"),
+            ),
+            (
+                "momo-mint/walk.png",
+                include_bytes!("../../../resources/insync/sprites/momo-mint/walk.png"),
+            ),
+            (
+                "momo-mint/sleep.png",
+                include_bytes!("../../../resources/insync/sprites/momo-mint/sleep.png"),
+            ),
+            (
+                "momo-mint/work.png",
+                include_bytes!("../../../resources/insync/sprites/momo-mint/work.png"),
+            ),
+            (
+                "momo-mint/stretch.png",
+                include_bytes!("../../../resources/insync/sprites/momo-mint/stretch.png"),
+            ),
+            (
+                "momo-mint/react.png",
+                include_bytes!("../../../resources/insync/sprites/momo-mint/react.png"),
+            ),
+            (
+                "momo-mint/poke_react.png",
+                include_bytes!("../../../resources/insync/sprites/momo-mint/poke_react.png"),
+            ),
+            (
+                "momo-mint/message_react.png",
+                include_bytes!("../../../resources/insync/sprites/momo-mint/message_react.png"),
+            ),
+            (
+                "momo-mint/invite_react.png",
+                include_bytes!("../../../resources/insync/sprites/momo-mint/invite_react.png"),
+            ),
+            (
+                "momo-mint/celebrate.png",
+                include_bytes!("../../../resources/insync/sprites/momo-mint/celebrate.png"),
+            ),
+            (
+                "momo-mint/rest.png",
+                include_bytes!("../../../resources/insync/sprites/momo-mint/rest.png"),
+            ),
         ];
         SpriteLibrary::from_embedded(manifest, &sheets).expect("embedded sprite manifest valid")
     })
