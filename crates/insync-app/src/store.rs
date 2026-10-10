@@ -430,16 +430,19 @@ mod tests {
     fn round_trips_and_recovers_from_corruption() {
         let root = temp_root();
         let store: JsonStore<Settings> = JsonStore::new(&root);
-        let mut settings = Settings::default();
-        settings.pet_scale_percent = 150;
-        settings.partner_timezone = Some("Asia/Tokyo".into());
+        let settings = Settings {
+            pet_scale_percent: 150,
+            partner_timezone: Some("Asia/Tokyo".into()),
+            ..Settings::default()
+        };
         store.save(&settings).unwrap();
         let loaded: Settings = store.load();
         assert_eq!(loaded.pet_scale_percent, 150);
         assert_eq!(loaded.partner_timezone.as_deref(), Some("Asia/Tokyo"));
 
         // corrupt: quarantine + default
-        std::fs::write(&store.path(), b"{not json").unwrap();
+        let path = store.path().to_path_buf();
+        std::fs::write(path, b"{not json").unwrap();
         let recovered: Settings = store.load();
         assert_eq!(recovered, Settings::default());
         let backups = std::fs::read_dir(root.join("backups")).unwrap().count();
@@ -451,7 +454,7 @@ mod tests {
     fn future_schema_falls_back_to_defaults() {
         let root = temp_root();
         let store: JsonStore<Alarms> = JsonStore::new(&root);
-        std::fs::write(&store.path(), r#"{"schema_version": 99, "alarms": []}"#).unwrap();
+        std::fs::write(store.path(), r#"{"schema_version": 99, "alarms": []}"#).unwrap();
         // strict version gate: non-1 is not silently migrated
         let loaded: Alarms = store.load();
         assert_eq!(loaded, Alarms::default());

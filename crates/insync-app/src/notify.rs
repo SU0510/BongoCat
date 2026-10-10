@@ -89,10 +89,11 @@ impl NotificationCenter {
                 .last_sent_at
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner);
-            if let Some((last_key, last_at)) = last.as_ref() {
-                if last_key == key && now - *last_at < SAME_KEY_COOLDOWN_MS {
-                    return None;
-                }
+            if let Some((last_key, last_at)) = last.as_ref()
+                && last_key == key
+                && now - *last_at < SAME_KEY_COOLDOWN_MS
+            {
+                return None;
             }
         }
         *self
@@ -145,8 +146,10 @@ mod tests {
     #[test]
     fn respects_disabled_and_dnd() {
         let center = center();
-        let mut settings = Settings::default();
-        settings.notifications_enabled = false;
+        let settings = Settings {
+            notifications_enabled: false,
+            ..Settings::default()
+        };
         assert!(
             center
                 .offer("msg", "t".into(), "b".into(), &settings, 1000)

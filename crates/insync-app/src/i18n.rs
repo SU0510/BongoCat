@@ -4,13 +4,7 @@
 pub fn text(language: &str, key: &str) -> &'static str {
     let zh = language.starts_with("zh");
     match key {
-        "app.name" => {
-            if zh {
-                "InSync"
-            } else {
-                "InSync"
-            }
-        }
+        "app.name" => "InSync",
         "tab.chat" => {
             if zh {
                 "消息"

@@ -37,7 +37,8 @@ pub fn install(icon: tray_icon::Icon, language: &str) -> Result<Tray, String> {
         None,
     );
     let quit = muda::MenuItem::with_id("quit", label("退出", "Quit"), true, None);
-    menu.append_items(&[&open, &poke, &hide, &quit]);
+    menu.append_items(&[&open, &poke, &hide, &quit])
+        .map_err(|e| e.to_string())?;
 
     let (tx, rx) = std::sync::mpsc::channel::<TrayAction>();
     // MenuEvent::recv forwards every menu event process-wide; the polling
@@ -58,7 +59,8 @@ pub fn install(icon: tray_icon::Icon, language: &str) -> Result<Tray, String> {
                     let _ = tx.send(action);
                 }
             }
-        });
+        })
+        .map_err(|e| e.to_string())?;
 
     let tray = tray_icon::TrayIconBuilder::new()
         .with_id("insync-tray")

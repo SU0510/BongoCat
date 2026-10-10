@@ -13,8 +13,8 @@ use gpui_kit::component::tab::{Tab as GpuiTab, TabBar};
 use gpui_kit::component::{ActiveTheme, Root};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::{
-    AnyElement, App, AppContext, Context, Entity, TitlebarOptions, Window,
-    WindowBounds, WindowHandle, WindowOptions, div, prelude::*, px, rgb, size,
+    AnyElement, App, AppContext, Context, Entity, TitlebarOptions, Window, WindowBounds,
+    WindowHandle, WindowOptions, div, prelude::*, px, rgb, size,
 };
 use gpui_kit::{FontWeight, SharedString};
 use insync_client::SyncCommand;
@@ -619,7 +619,7 @@ impl HubView {
                     }
                 }
                 AccountOp::Logout => {
-                    let _ = client.with_token(&token).logout();
+                    let _ = insync_client::blocking::run(client.with_token(&token).logout());
                     let _ = JsonStoreAccount(&core).clear();
                     report("已退出登录".into());
                 }
