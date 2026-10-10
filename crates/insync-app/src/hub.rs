@@ -105,7 +105,10 @@ pub fn ensure_hub(cx: &mut App) {
     let core = Arc::clone(&coordinator.core);
     let language = core.language();
     let options = WindowOptions {
-        window_bounds: Some(WindowBounds::Windowed(Default::default())),
+        window_bounds: Some(WindowBounds::Windowed(gpui_kit::Bounds {
+            origin: Default::default(),
+            size: size(px(400.), px(620.)),
+        })),
         titlebar: Some(TitlebarOptions {
             title: Some(text(&language, "app.name").into()),
             ..Default::default()
