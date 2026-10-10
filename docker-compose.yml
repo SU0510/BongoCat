@@ -1,0 +1,16 @@
+services:
+  insync-server:
+    build: .
+    ports:
+      - "127.0.0.1:8787:8787"
+    volumes:
+      - insync-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8787/health || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  insync-data:
