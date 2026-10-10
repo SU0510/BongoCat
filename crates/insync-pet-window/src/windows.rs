@@ -205,7 +205,6 @@ fn run_window_thread_body(
             receiver,
             press: None,
             dragging: false,
-            shared: Arc::clone(&shared),
         });
 
         let (x, y) = config.position.unwrap_or((100, 200));
