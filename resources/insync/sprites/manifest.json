@@ -1,0 +1,173 @@
+{
+  "format_version": 1,
+  "characters": {
+    "momo": {
+      "frame_width": 192,
+      "frame_height": 256,
+      "animations": {
+        "idle": {
+          "file": "momo/idle.png",
+          "frames": 4,
+          "fps": 3,
+          "loop": true
+        },
+        "blink": {
+          "file": "momo/blink.png",
+          "frames": 5,
+          "fps": 8,
+          "loop": false
+        },
+        "wave": {
+          "file": "momo/wave.png",
+          "frames": 6,
+          "fps": 6,
+          "loop": false
+        },
+        "walk": {
+          "file": "momo/walk.png",
+          "frames": 6,
+          "fps": 8,
+          "loop": true
+        },
+        "sleep": {
+          "file": "momo/sleep.png",
+          "frames": 4,
+          "fps": 2,
+          "loop": true
+        },
+        "work": {
+          "file": "momo/work.png",
+          "frames": 4,
+          "fps": 3,
+          "loop": true
+        },
+        "stretch": {
+          "file": "momo/stretch.png",
+          "frames": 6,
+          "fps": 5,
+          "loop": false
+        },
+        "react": {
+          "file": "momo/react.png",
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "poke_react": {
+          "file": "momo/poke_react.png",
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "message_react": {
+          "file": "momo/message_react.png",
+          "frames": 4,
+          "fps": 6,
+          "loop": false
+        },
+        "invite_react": {
+          "file": "momo/invite_react.png",
+          "frames": 4,
+          "fps": 6,
+          "loop": false
+        },
+        "celebrate": {
+          "file": "momo/celebrate.png",
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "rest": {
+          "file": "momo/rest.png",
+          "frames": 4,
+          "fps": 3,
+          "loop": true
+        }
+      }
+    },
+    "momo-mint": {
+      "frame_width": 192,
+      "frame_height": 256,
+      "animations": {
+        "idle": {
+          "file": "momo-mint/idle.png",
+          "frames": 4,
+          "fps": 3,
+          "loop": true
+        },
+        "blink": {
+          "file": "momo-mint/blink.png",
+          "frames": 5,
+          "fps": 8,
+          "loop": false
+        },
+        "wave": {
+          "file": "momo-mint/wave.png",
+          "frames": 6,
+          "fps": 6,
+          "loop": false
+        },
+        "walk": {
+          "file": "momo-mint/walk.png",
+          "frames": 6,
+          "fps": 8,
+          "loop": true
+        },
+        "sleep": {
+          "file": "momo-mint/sleep.png",
+          "frames": 4,
+          "fps": 2,
+          "loop": true
+        },
+        "work": {
+          "file": "momo-mint/work.png",
+          "frames": 4,
+          "fps": 3,
+          "loop": true
+        },
+        "stretch": {
+          "file": "momo-mint/stretch.png",
+          "frames": 6,
+          "fps": 5,
+          "loop": false
+        },
+        "react": {
+          "file": "momo-mint/react.png",
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "poke_react": {
+          "file": "momo-mint/poke_react.png",
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "message_react": {
+          "file": "momo-mint/message_react.png",
+          "frames": 4,
+          "fps": 6,
+          "loop": false
+        },
+        "invite_react": {
+          "file": "momo-mint/invite_react.png",
+          "frames": 4,
+          "fps": 6,
+          "loop": false
+        },
+        "celebrate": {
+          "file": "momo-mint/celebrate.png",
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "rest": {
+          "file": "momo-mint/rest.png",
+          "frames": 4,
+          "fps": 3,
+          "loop": true
+        }
+      }
+    }
+  }
+}
