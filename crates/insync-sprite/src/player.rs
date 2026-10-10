@@ -316,8 +316,8 @@ mod tests {
         assert_eq!(player.active_name(), Some(names::IDLE));
         player.play(names::MESSAGE_REACT, priority::REACTION, 0);
         // message_react: 4 frames @6fps = 666ms
-        assert_eq!(player.finished(665), false);
-        assert_eq!(player.finished(666), true);
+        assert!(!player.finished(665));
+        assert!(player.finished(666));
         assert!(player.play_base(666));
         assert_eq!(player.active_name(), Some(names::IDLE));
     }
