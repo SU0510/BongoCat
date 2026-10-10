@@ -1,0 +1,27 @@
+[package]
+name = "insync-server"
+version = "0.1.0"
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+insync-core = { workspace = true }
+argon2 = { workspace = true }
+axum = { workspace = true }
+futures-util = { workspace = true }
+rand = { workspace = true }
+rusqlite = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+sha2 = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "net", "time", "signal"] }
+uuid = { workspace = true }
+
+[dev-dependencies]
+reqwest = { workspace = true }
+tokio-tungstenite = { workspace = true }
+
+[lints]
+workspace = true

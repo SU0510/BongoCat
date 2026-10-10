@@ -212,13 +212,82 @@ pub enum ClientFrame {
 }
 
 /// A server -> client WebSocket frame (events plus control replies).
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(tag = "type", rename_all = "snake_case")]
+///
+/// Serialized by hand: event frames go on the wire as the bare
+/// [`EventFrame`] envelope (identical to the REST catch-up body so one
+/// parser handles both), while control frames carry a `"type"` tag. A naive
+/// internally-tagged enum would emit `type` twice for events and break
+/// every client.
+#[derive(Debug, Clone, PartialEq)]
 pub enum ServerFrame {
     Ready { latest_seq: u64 },
     Event(Box<EventFrame>),
     Pong,
     Error { code: String, message: String },
+}
+
+impl Serialize for ServerFrame {
+    fn serialize<S: serde::Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        match self {
+            ServerFrame::Event(frame) => frame.serialize(serializer),
+            other => {
+                #[derive(Serialize)]
+                #[serde(tag = "type", rename_all = "snake_case")]
+                enum Control<'a> {
+                    Ready { latest_seq: u64 },
+                    Pong,
+                    Error { code: &'a str, message: &'a str },
+                }
+                match other {
+                    ServerFrame::Ready { latest_seq } => Control::Ready {
+                        latest_seq: *latest_seq,
+                    }
+                    .serialize(serializer),
+                    ServerFrame::Pong => Control::Pong.serialize(serializer),
+                    ServerFrame::Error { code, message } => {
+                        Control::Error { code, message }.serialize(serializer)
+                    }
+                    ServerFrame::Event(_) => unreachable!("handled above"),
+                }
+            }
+        }
+    }
+}
+
+impl<'de> Deserialize<'de> for ServerFrame {
+    fn deserialize<D: serde::Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let tag = value.get("type").and_then(|t| t.as_str());
+        match tag {
+            Some("ready") => {
+                let latest_seq = value
+                    .get("latest_seq")
+                    .and_then(|v| v.as_u64())
+                    .ok_or_else(|| serde::de::Error::custom("ready without latest_seq"))?;
+                Ok(ServerFrame::Ready { latest_seq })
+            }
+            Some("pong") => Ok(ServerFrame::Pong),
+            Some("error") => {
+                let code = value
+                    .get("code")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("UNKNOWN")
+                    .to_string();
+                let message = value
+                    .get("message")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("")
+                    .to_string();
+                Ok(ServerFrame::Error { code, message })
+            }
+            _ => {
+                // everything else must be an event envelope
+                let frame: EventFrame =
+                    serde_json::from_value(value).map_err(serde::de::Error::custom)?;
+                Ok(ServerFrame::Event(Box::new(frame)))
+            }
+        }
+    }
 }
 
 #[cfg(test)]
