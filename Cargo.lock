@@ -4179,6 +4179,37 @@ dependencies = [
 ]
 
 [[package]]
+name = "insync-app"
+version = "0.1.0"
+
+[[package]]
+name = "insync-client"
+version = "0.1.0"
+
+[[package]]
+name = "insync-core"
+version = "0.1.0"
+dependencies = [
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.21",
+ "uuid",
+]
+
+[[package]]
+name = "insync-pet-window"
+version = "0.1.0"
+
+[[package]]
+name = "insync-server"
+version = "0.1.0"
+
+[[package]]
+name = "insync-sprite"
+version = "0.1.0"
+
+[[package]]
 name = "interpolate_name"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"

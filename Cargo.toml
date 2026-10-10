@@ -21,6 +21,12 @@ members = [
     "crates/bongocat-storage",
     "crates/bongocat-ui",
     "crates/bongocat-update",
+    "crates/insync-core",
+    "crates/insync-server",
+    "crates/insync-client",
+    "crates/insync-sprite",
+    "crates/insync-pet-window",
+    "crates/insync-app",
 ]
 
 [workspace.package]
@@ -87,6 +93,24 @@ bongocat-runtime = { path = "crates/bongocat-runtime" }
 bongocat-storage = { path = "crates/bongocat-storage" }
 bongocat-ui = { path = "crates/bongocat-ui" }
 bongocat-update = { path = "crates/bongocat-update" }
+
+insync-core = { path = "crates/insync-core" }
+insync-server = { path = "crates/insync-server" }
+insync-client = { path = "crates/insync-client" }
+insync-sprite = { path = "crates/insync-sprite" }
+insync-pet-window = { path = "crates/insync-pet-window" }
+insync-app = { path = "crates/insync-app" }
+argon2 = "=0.6.0"
+axum = { version = "=0.8.9", features = ["ws"] }
+futures-util = "=0.3.34"
+jiff = { version = "=0.2.38", default-features = false, features = ["std", "serde"] }
+rand = "=0.10.3"
+reqwest = { version = "=0.12.28", default-features = false, features = ["json", "rustls-tls"] }
+rusqlite = { version = "=0.40.2", features = ["bundled"] }
+sha2 = "=0.11.0"
+tokio = { version = "=1.53.2", features = ["macros", "sync"] }
+tokio-tungstenite = { version = "=0.30.0", features = ["rustls-tls-webpki-roots"] }
+uuid = { version = "=1.26.1", default-features = false, features = ["std", "v7"] }
 
 [workspace.lints.rust]
 unsafe_code = "forbid"
