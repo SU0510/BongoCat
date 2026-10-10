@@ -83,8 +83,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@1.97.1
         targets: x86_64-pc-windows-msvc
       - uses: Swatinem/rust-cache@v2
-      - name: Clippy (host)
-        run: cargo clippy --locked -p insync-pet-window --all-targets -- -D warnings
+      - name: Clippy (all InSync crates, Windows host = real Win32 target)
+        run: cargo clippy --locked -p insync-core -p insync-server -p insync-client -p insync-sprite -p insync-pet-window -p insync-app --all-targets -- -D warnings
       - name: Build app + server (x86_64)
         run: |
           cargo build --locked -p insync-app --release --target x86_64-pc-windows-msvc

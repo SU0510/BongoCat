@@ -69,12 +69,29 @@ server {
 - `GET /health` → `ok`
 - `GET /version` → `{"service":"insync-server","protocol_version":1}`
 
-## 6. 客户端桌面应用
+## 6. Windows 交叉构建验证（macOS/Linux 开发机）
+
+在 macOS 上验证 InSync 全部 crate 的 Windows 目标可构建性（含 C 依赖 ring）：
+
+```bash
+cargo install cargo-xwin
+brew install llvm   # 提供 clang-cl / llvm-lib
+export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+cargo xwin clippy --target x86_64-pc-windows-msvc \
+  -p insync-core -p insync-server -p insync-client \
+  -p insync-sprite -p insync-pet-window -p insync-app \
+  --all-targets -- -D warnings
+```
+
+`cargo xwin` 自动下载 Windows SDK 头/库并用 clang-cl 编译 ring 的 C 代码；
+只做编译检查不链接，无法替代 Windows 实机运行验证。
+
+## 7. 客户端桌面应用
 
 当前仓库提供 `cargo build -p insync-app`（macOS/Windows）产出的裸二进制，
 尚未接入安装包流水线（BongoCat 的 `bongocat-packaging` 不打 InSync 包）。
 开发运行：`cargo run -p insync-app`；正式发布打包见
-`docs/insync/final-report.md` 的「待完成事项」。
+`docs/insync/final-report.md` 的「未完成与待办」。
 
 ## 7. 安全清单
 

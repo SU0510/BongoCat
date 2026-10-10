@@ -40,7 +40,7 @@
 
 - [x] F1 Dockerfile + docker-compose.yml + deployment.md（备份/恢复/TLS/健康检查）
 - [x] F2 CI workflow `.github/workflows/insync-verify.yml`（素材校验/Linux 测试/macOS+Windows 构建/Docker 冒烟；需推送后在 GitHub 启用）
-- [x] F3 本地 macOS 构建 + 冒烟（进程稳定 35s、干净退出、RSS 平稳 ~118MB、CPU ~6–8% debug 构建；全部 78 个测试通过；截图因测试显示器输出全黑无法目检，已如实记录）
+- [x] F3 本地 macOS 构建 + 冒烟（进程稳定 35s、干净退出、RSS 平稳 ~118MB、CPU ~6–8% debug 构建；全部 78 个测试通过；截图因测试显示器输出全黑无法目检，已如实记录。Windows 目标：六 crate `cargo xwin clippy --target x86_64-pc-windows-msvc -D warnings` 全绿，含 gpui-kit/tray-icon/muda/ring 路径）
 - [x] F4 最终交付报告（docs/insync/final-report.md）
 
 ## 已知剩余工作

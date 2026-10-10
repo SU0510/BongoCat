@@ -90,9 +90,14 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
   AppKit 路径。**限制**：测试环境的显示器输出为全黑（截屏捕获成功但内容全
   黑），无法目检动画外观；已用精灵 contact-sheet（`target/insync-preview/`）
   人工核验帧绘制正确。Windows 仅交叉静态检查，未实机运行。
-- **Windows**：`cargo clippy --target x86_64-pc-windows-msvc -p insync-pet-window
-  --all-targets -D warnings` 通过（分层窗口路径可编译）；完整构建与运行验证
-  交由 `insync-verify` CI 的 `build-windows` job，**尚未实际执行**（见 §7）。
+- **Windows**：全部六个 InSync crate 已通过 **Windows 目标交叉编译验证**：
+  `cargo xwin clippy --target x86_64-pc-windows-msvc -p insync-core -p
+  insync-server -p insync-client -p insync-sprite -p insync-pet-window -p
+  insync-app --all-targets -- -D warnings` 全绿（含 gpui-kit、tray-icon、
+  muda、reqwest/rustls、ring 的 Windows 路径），server release check 亦通过。
+  环境：`cargo install cargo-xwin` + `brew install llvm`（提供 clang-cl /
+  llvm-lib），本机 macOS 交叉检查，不做链接。**Windows 实机运行仍未验证**
+  （分层窗口代码未经真实 Win32 环境执行，见 §7）。
 
 ## 6. 后端部署方法和实际部署状态
 
@@ -114,6 +119,7 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 | 预览 GIF / contact-sheet | `target/insync-preview/` | 本地产物（未入库） |
 | 冒烟证据 | `target/insync-preview/smoke-evidence.txt` | 本地产物 |
 | CI 工作流 | `.github/workflows/insync-verify.yml` | 已提交，未触发（未推送） |
+| Windows 交叉验证 | `cargo xwin clippy --target x86_64-pc-windows-msvc`（六 crate，`-D warnings`） | 本机通过 ✅ |
 | 部署配置 | `Dockerfile`、`docker-compose.yml`、`docs/insync/deployment.md` | 已提交 ✅ |
 
 ## 8. 未完成与待办（如实标注）
@@ -122,8 +128,9 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
    确认（动画帧已由 contact-sheet 与单元测试覆盖，窗口行为已由 NSPanel/
    Win32 路径的静态验证 + 进程稳定性覆盖）。需要在一台有真实显示器的
    macOS/Windows 上人工核验。
-2. **Windows 实机运行未验证**：仅有交叉静态检查；CI 构建产物需要人工下载
-   运行确认（分层窗口代码未经真实 Win32 环境执行）。
+2. **Windows 实机运行未验证**：Windows 目标的可构建性已通过 `cargo xwin`
+   交叉编译检查（六 crate 全绿，含全部 Windows 依赖路径）；剩余缺口仅是
+   在真实 Win32 环境中运行确认（分层窗口行为、DPI、托盘）。
 3. **OS 原生通知**：当前通知为应用内通知中心 + 声音 + 桌宠动画；未接
    UNUserNotificationCenter / Windows Toast（涉及打包与权限，v2 工作）。
 4. **安装包流水线**：InSync 未接入 `bongocat-packaging`（app/dmg/NSIS）；
