@@ -118,6 +118,15 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
   环境：`cargo install cargo-xwin` + `brew install llvm`（提供 clang-cl /
   llvm-lib），本机 macOS 交叉检查，不做链接。**Windows 实机运行仍未验证**
   （分层窗口代码未经真实 Win32 环境执行，见 §7）。
+- **macOS release 二进制（CI 产物，实机）**：安装 CI 于 `326408e1`（run
+  38108110093）产出的 `insync-macos-aarch64` release 二进制后实测：应用启动
+  后 RSS 102MB → 稳定 ~90MB（77s 无增长），SIGTERM 1s 内干净退出，stdout/
+  stderr 均为空；删除数据根下 `assets/` 后重启，chime 重新落盘为 0600 且与
+  已提交的 `resources/insync/sounds/alarm.wav` 逐字节一致（sha256
+  `a7177739…`）。服务器二进制 `/health` 返回 200，`/v1/auth/register` 返回
+  201（此前在本机 debug 构建上完成过完整注册→登录→邀请→接受→发消息→对方
+  拉取的端到端）。**未验证**：声音是否真实从扬声器播出（本环境无音频输出
+  设备可核验）。
 
 ## 6. 后端部署方法和实际部署状态
 
@@ -145,9 +154,24 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 | Windows 交叉验证 | `cargo xwin clippy --target x86_64-pc-windows-msvc`（六 crate，`-D warnings`） | 本机通过 ✅ |
 | 部署配置 | `Dockerfile`、`docker-compose.yml`、`docs/insync/deployment.md` | 已提交 ✅ |
 
+CI 于 `326408e1` 产出的 release 二进制哈希（`insync-macos-aarch64`：
+`insync-app` = `b58b5b1a…`、`insync-server` = `293f0ddd…`；
+`insync-windows-x86_64`：`insync-app.exe` = `fc273b9f…`、
+`insync-server.exe` = `ba017f4a…`），其中 macOS 两份已**安装到本机**：
+
+| 安装位置 | 内容 | 说明 |
+| --- | --- | --- |
+| `~/Applications/InSync.app` | `Contents/MacOS/insync-app` + `Info.plist` | Bundle ID `com.ayangweb.insync`，ad-hoc 签名（`codesign --force --sign -`），`codesign --verify` 通过 ✅ |
+| `~/.local/bin/insync-server` | 服务器二进制 | 已 ad-hoc 签名并验证 ✅ |
+
+安装后二进制哈希（`a922a051…` / `14d7de15…`）与 CI 产物不同，原因是 ad-hoc
+签名会重写 Mach-O 的签名段；内容源自上述 CI 产物，非本机构建。本地安装使用
+`-`（ad-hoc）证书，Gatekeeper 首次打开仍需右键“打开”；正式分发签名的缺少
+见 §8。
+
 ### 7.1 CI 实际运行记录（触发问题与修复）
 
-分支推送后 `insync-verify` 一共暴露出四个真实问题，均已修复并留下提交：
+分支推送后 `insync-verify` 一共暴露出六个真实问题，均已修复并留下提交：
 
 1. **触发器 glob 不跨目录**：`paths: crates/insync-*` 的单星号不匹配
    `crates/insync-sprite/src/library.rs`，只匹配 crate 目录本身，导致此后
@@ -186,6 +210,10 @@ CI 补上 Linux/macOS/Windows 三个平台的真机测试后，又暴露出两�
 workspace 成员继承 `[workspace.package].version`。已改为
 `version.workspace = true` 并同步 `Cargo.lock`（改为 2.2.0）。
 
+修复后的最终运行：**run 38108110093（commit `326408e1`）五个 job 全绿** ——
+`assets`、`test-linux`、`build-windows`、`docker-server`、`build-macos` 全部
+`success`。该 run 的产物即 §7 中安装到本机的二进制。
+
 ## 8. 未完成与待办（如实标注）
 
 1. **GUI 目检未完成**：测试显示器输出全黑，无法对桌宠/hub 的实际观感截图
@@ -212,9 +240,10 @@ workspace 成员继承 `[workspace.package].version`。已改为
 
 ## 9. 需要用户亲自完成的最少事项
 
-1. **在真实设备上目检**：分支已推送、CI 已跑通，从 artifacts 下载 macOS
-   （`insync-macos-aarch64`）/ Windows（`insync-windows-x86_64`）产物，在带
-   真实显示器的机器上核验桌宠外观与交互——这是本环境无法完成的验证。
+1. **在真实设备上目检**：分支已推送、CI 已跑通，macOS 产物已装入本机
+   `~/Applications/InSync.app`（见 §7）。仍需要在**带真实显示器**的机器上目检
+   桌宠外观与交互——这是本环境（显示器输出全黑）无法完成的验证；Windows 侧
+   请从 artifact `insync-windows-x86_64` 下载后在实机运行。
 2. **提供一台公网服务器 + 域名**（可选）：按 `docs/insync/deployment.md`
    执行 `docker compose up -d --build` + 反向代理 TLS；把地址填进两端
    客户端设置。
