@@ -7,7 +7,9 @@ on:
   push:
     branches: [master, feat/insync]
     paths:
-      - "crates/insync-*"
+      # A single `*` does not cross `/`, so `crates/insync-*` alone matches
+      # only the crate directories and silently skips every edit inside them.
+      - "crates/insync-*/**"
       - "crates/bongocat-audio/**"
       - "crates/bongocat-storage/**"
       - "crates/bongocat-log/**"
@@ -18,7 +20,7 @@ on:
       - ".github/workflows/insync-verify.yml"
   pull_request:
     paths:
-      - "crates/insync-*"
+      - "crates/insync-*/**"
       - ".github/workflows/insync-verify.yml"
 
 concurrency:
