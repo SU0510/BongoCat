@@ -259,9 +259,10 @@ debug 构建上迭代，随后用同一份工具在**安装的 CI release 产物
 | Windows 交叉验证 | `cargo xwin clippy --target x86_64-pc-windows-msvc`（六 crate，`-D warnings`） | 本机通过 ✅ |
 | 部署配置 | `Dockerfile`、`docker-compose.yml`、`docs/insync/deployment.md` | 已提交 ✅ |
 
-CI 产出的 release 二进制哈希（`insync-macos-aarch64`：本轮之前安装的是
-`3939521b`（run 38113466225，含 §5.1 的两处修复）`insync-app` =
-`8e46e665…`；此前的 `326408e1`（run 38108110093）`insync-app` =
+CI 产出的 release 二进制哈希（`insync-macos-aarch64`：本轮（角色工作，run
+38149994327）安装的 `insync-app` = `3021ac59…`、`insync-server`（安装后哈希
+`87ed8d23…`）；上一轮安装的是 `3939521b`（run 38113466225，含 §5.1 的两处修复）
+`insync-app` = `8e46e665…`；此前的 `326408e1`（run 38108110093）`insync-app` =
 `b58b5b1a…`。`insync-server` 两次均为 `293f0ddd…`；
 `insync-windows-x86_64`（`326408e1`）：`insync-app.exe` = `fc273b9f…`、
 `insync-server.exe` = `ba017f4a…`），其中 macOS 两份已**安装到本机**：
@@ -275,9 +276,11 @@ CI 产出的 release 二进制哈希（`insync-macos-aarch64`：本轮之前安�
 （文件恰好增长 18128 字节）。比对方式是 `otool -s` 逐个 section 取出内容、
 **忽略地址列**：签名会新增一条 load command，使所有 section 的起始地址整体
 后移，因此直接比对含地址列的原始输出会对同一份产物误报 0/22（本轮先踩到，
-改正后得到下面的结果）。本轮 app 的 **22/22 个 section 内容逐字节一致**，
-server 的 17/17 在上一轮同样一致；同一比对对上一轮 run 的产物给出 11 个
-section 不同，说明该检查确实能发现差异。本地
+改正后得到下面的结果）；另外 `otool -s` 的参数顺序是 `<segname> <sectname>
+<binary>`（binary 在最后），本轮又两次写反（binary 在前），负向对照
+（app 对 server 比应报不同）仍报 0 才发现。本轮 app 的 **22/22 个 section
+内容逐字节一致**，server 的 17/17 同样一致；同一比对对 app↔server 给出
+20/22 个 section 不同，说明该检查确实能发现差异。本地
 安装使用 `-`（ad-hoc）证书，Gatekeeper 首次打开仍需右键“打开”；正式分发
 签名的缺少见 §8。
 
