@@ -79,6 +79,17 @@ def crate_manifests(root: Path):
     return [root / directory / "Cargo.toml" for directory in directories]
 
 
+def trigger_keys(text: str):
+    """The trigger keys declared directly under `on:` (two-space indent)."""
+    block = text.split("\non:", 1)[1]
+    lines = []
+    for line in block.splitlines():
+        if line and not line.startswith(" "):
+            break
+        lines.append(line)
+    return re.findall(r"^  ([A-Za-z_]+):", "\n".join(lines), re.MULTILINE)
+
+
 def trigger_paths(text: str, marker: str):
     """The quoted path entries of one trigger block in the verify workflow.
 
@@ -273,6 +284,16 @@ class ReleaseWorkflowContractTests(unittest.TestCase):
         text = self.workflow()
         self.assertIn("insync-v$version", text)
         self.assertIn("tools/insync-release.py version", text)
+
+    def test_it_declares_no_trigger_that_cannot_fire(self):
+        # GitHub registers `workflow_dispatch` only for a workflow file on the
+        # default branch; this file lives on a feature branch, so a dispatch
+        # trigger would be dead config that `gh workflow run` refuses (it answers
+        # "HTTP 422: Workflow does not have 'workflow_dispatch' trigger"). The
+        # retry path for a failed publish is re-running the failed run. Keeping
+        # the trigger list to exactly the tag makes adding one back a deliberate
+        # act: update this test and the ADR's retry paragraph together.
+        self.assertEqual(trigger_keys(self.workflow()), ["push"])
 
     def test_it_refuses_a_commit_that_is_not_a_release_commit(self):
         text = self.workflow()

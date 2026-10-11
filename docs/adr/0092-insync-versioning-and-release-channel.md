@@ -52,8 +52,7 @@ would claim that tag and try to package installers for it.
 `insync-verify.yml` already builds and tests the release binaries for macOS
 (aarch64) and Windows (x86_64) on every push to `feat/insync` / `master`.
 
-`insync-release.yml` (triggered by the tag, with `workflow_dispatch` for a manual
-re-run) therefore:
+`insync-release.yml` (triggered by the tag alone) therefore:
 
 1. reads the version from the manifests and refuses a tag that disagrees;
 2. refuses a commit whose subject is not `chore(insync): release v<version>`;
@@ -71,6 +70,12 @@ The workflow contains no `cargo build`: a released binary is by construction one
 green CI run built and tested for that exact commit, and the release notes link
 that run. `tools/insync-release.py` is the single reader of the version and the
 notes, used by both the workflow and the tests.
+
+The workflow declares no `workflow_dispatch`: GitHub registers that trigger only
+for a workflow file on the repository's default branch, and this file lives on a
+feature branch, so it would never fire. Retrying a publish that failed for an
+external reason (an expired artifact, an API error) is done by re-running the
+failed run against the same tag and commit.
 
 ### What a release is not (still)
 

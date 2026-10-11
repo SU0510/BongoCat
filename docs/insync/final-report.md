@@ -97,7 +97,7 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 | bongocat-audio（回归：启用 wav feature 后原有测试） | 15（+1 ignored） | ✅ |
 | 素材校验 `validate_sprites.py` | 26 sheet | ✅ |
 | 素材校验 `validate_alarm.py`（格式/电平/削波/音高） | 1 WAV | ✅ |
-| BongoCat 工具契约测试 `tools/tests/` | 121 | ✅（含 product version 契约、InSync 版本/发布契约 `test_insync_release.py` 19 项与 workflow 校验；其中 19 项由 `insync-verify` 的 `contracts` 任务在每次推送重跑，全套在 PR 触发的 `verify.yml` 上跑） |
+| BongoCat 工具契约测试 `tools/tests/` | 122 | ✅（含 product version 契约、InSync 版本/发布契约 `test_insync_release.py` 20 项与 workflow 校验；其中 20 项由 `insync-verify` 的 `contracts` 任务在每次推送重跑，全套在 PR 触发的 `verify.yml` 上跑） |
 
 命令：`cargo test --locked -p insync-core -p insync-server -p insync-client -p insync-sprite
 -p insync-pet-window -p insync-app -p bongocat-audio`。六个 InSync crate 现在合计 **88**
@@ -106,7 +106,7 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 在 Linux 任务上跑通。
 另有 `cargo clippy --locked <六个 insync crate> -p bongocat-audio --all-targets -- -D warnings`
 全绿（pet-window 另在 `x86_64-pc-windows-msvc` target 上全绿），以及
-`cargo fmt --all -- --check` 与 `python3 -m unittest discover -s tools/tests` 121 项全绿。
+`cargo fmt --all -- --check` 与 `python3 -m unittest discover -s tools/tests` 122 项全绿。
 自 2026-10-11 起，这些命令不再在本机执行（见 §8 第 9 条与 goal 文档的验证策略），
 改由 `insync-verify` 工作流在三个平台上运行；本轮结果为 run 38119777698 全绿。
 
@@ -248,7 +248,7 @@ debug 构建上迭代，随后用同一份工具在**安装的 CI release 产物
 | 预览 GIF / contact-sheet | `target/insync-preview/` | 本地产物（未入库） |
 | 冒烟证据 | `target/insync-preview/smoke-evidence.txt` | 本地产物 |
 | CI 工作流 | `.github/workflows/insync-verify.yml` | 已提交并推送，`feat/insync` 上实际运行 ✅ |
-| 发布通道（ADR-0092） | `.github/workflows/insync-release.yml`、`tools/insync-release.py`、`docs/insync/CHANGELOG.md` | 已提交 ✅；`insync-v*` 标签 → Release，发布内容 = 该提交上 `insync-verify` 已通过的产物 |
+| 发布通道（ADR-0092） | `.github/workflows/insync-release.yml`、`tools/insync-release.py`、`docs/insync/CHANGELOG.md` | 已提交 ✅ 且已实际发布：<https://github.com/SU0510/BongoCat/releases/tag/insync-v0.1.0>（四个平台资产 + `SHA256SUMS`，复核见 §7.2） |
 | Windows 交叉验证 | `cargo xwin clippy --target x86_64-pc-windows-msvc`（六 crate，`-D warnings`） | 本机通过 ✅ |
 | 部署配置 | `Dockerfile`、`docker-compose.yml`、`docs/insync/deployment.md` | 已提交 ✅ |
 
@@ -336,6 +336,42 @@ job 全绿**，本机安装的二进制即该 run 的产物，并在其上复验
 置前、菜单项“打开面板”（已打开时不关闭）、关闭按钮后再打开（新建窗口并置前）与
 桌宠右键两条分支。后续仅有文档提交（`docs/` 不在触发路径内），因此代码状态的验证
 结论仍以 `3939521b` 的这次 run 为准。
+
+### 7.2 首次真实发布（`insync-v0.1.0`）与发布通道的验证
+
+发布通道（ADR-0092）的代码在提交 `fec6bf8e`，发布提交是 `1ed9d3ff`
+（`chore(insync): release v0.1.0`），附注标签 `insync-v0.1.0` 打在同一提交上并推送。
+链路与结果：
+
+| 环节 | 结果 |
+| --- | --- |
+| `insync-verify` run [38122874262](https://github.com/SU0510/BongoCat/actions/runs/38122874262)（commit `1ed9d3ff`） | 六个任务全绿：`assets`、`contracts`（19 条 InSync 契约）、`test-linux`、`build-macos`、`build-windows`、`docker-server` ✅ |
+| `insync-release` run [38123464194](https://github.com/SU0510/BongoCat/actions/runs/38123464194)（tag push） | `publish` 七个步骤全部 success：标签=版本校验、提交标题校验、定位该提交的 verify 运行、`gh run download`、校验和、正文合成、`gh release create` ✅ |
+| Release | https://github.com/SU0510/BongoCat/releases/tag/insync-v0.1.0（标题 `InSync 0.1.0`，非 draft、非 prerelease） |
+| 资产 | `insync-app-macos-aarch64` 16,802,544 B、`insync-app-windows-x86_64.exe` 20,483,072 B、`insync-server-macos-aarch64` 3,210,144 B、`insync-server-windows-x86_64.exe` 3,240,960 B、`SHA256SUMS` ✅ |
+
+自己动手复验（不只看 CI 的结论）：
+
+1. `gh release download insync-v0.1.0` 取回五个文件后执行 `shasum -a 256 -c SHA256SUMS`：
+   四个资产全部 `OK`。
+2. 再 `gh run download 38122874262` 取回被验证过的 CI 产物，逐个比对 SHA-256：发布出去的
+   四个文件与那次运行产出的四个文件**哈希完全相同**（app/服务器 × macOS/Windows），
+   即「发布的字节 = 被验证的字节」不是工作流自述，而是可复核的事实。
+3. 反向验证（负向对照）：在同一提交上推一个版本号故意不匹配的临时标签 `insync-v0.2.0`，
+   run [38123689217](https://github.com/SU0510/BongoCat/actions/runs/38123689217) 在第一步
+   即失败，日志为 `tag 'insync-v0.2.0' does not match the InSync version: expected
+   'insync-v0.1.0'`，且**没有创建任何 release**（`gh release list` 只有 `insync-v0.1.0`）；
+   随后该临时标签已在本地与远端删除，仓库里只留 `insync-v0.1.0`。
+
+发布正文由上表第 2 步从 `docs/insync/CHANGELOG.md` 的 `## 0.1.0 - 2026-10-11` 条目生成，
+并加了指向该 verify 运行的链接与「裸二进制、未签名、平台限制」说明。
+
+发布通道本身还暴露出一个只有真跑才会发现的问题并已修掉：`insync-release.yml` 原本声明了
+`workflow_dispatch` 以便手动重发，但 GitHub 只为**默认分支上的**工作流文件注册该触发器，
+本文件在功能分支上，`gh workflow run` 直接返回 `HTTP 422: Workflow does not have
+'workflow_dispatch' trigger`——即那是一段永远不会生效的配置。现已删除该触发器，重发路径
+改为重跑失败的那次 run（同一标签、同一提交、同样的校验），并补了契约测试防止它被无声加回。
+（已发布的 `insync-v0.1.0` 由 `1ed9d3ff` 上的旧版文件产出，那次运行未用到该触发器。）
 
 ## 8. 未完成与待办（如实标注）
 

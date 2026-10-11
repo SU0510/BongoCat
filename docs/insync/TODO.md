@@ -58,22 +58,24 @@
 - [x] F2 CI workflow `.github/workflows/insync-verify.yml`（`assets` 素材校验与防漂移 → Linux 共享 crate 测试 → macOS 全 crate clippy/测试 + release 构建 → Windows 全 crate clippy/测试 + release 构建 → Docker 镜像冒烟）。已推送并实际跑通诊断：修复触发器 `crates/insync-*` 单星号不跨 `/` 导致代码改动不触发、Linux 任务误构建 GPUI 导致 fontconfig 缺失、素材漂移字节比对跨平台不稳定、六个 crate 未继承 workspace 版本（违反 `test_product_version_contract`）。三个平台真机测试后另发现并修复两个产品缺陷：Windows 无系统时区库导致时钟/闹钟失败（jiff `tzdb-bundle-platform`）、容器 `/data` 归 root 导致服务端无法建库（镜像内预建并 chown，另装 `curl` 供健康检查）。
 - [x] F3 本地 macOS 构建 + 冒烟（进程稳定 35s、干净退出、RSS 平稳 ~118MB、CPU ~6–8% debug 构建；当时全部 79 个测试通过（现为 88，见最终报告 §4）；截图因测试显示器输出全黑无法目检，已如实记录。Windows 目标：六 crate `cargo xwin clippy --target x86_64-pc-windows-msvc -D warnings` 全绿，含 gpui-kit/tray-icon/muda/ring 路径）
 - [x] F4 最终交付报告（docs/insync/final-report.md）
-- [ ] F5 独立版本号与发布通道（ADR-0092）：六个 crate 显式声明自己的版本（0.1.0，不再继承
+- [x] F5 独立版本号与发布通道（ADR-0092）：六个 crate 显式声明自己的版本（0.1.0，不再继承
   workspace 版本），`insync-v*` 标签触发 `insync-release.yml`，发布内容固定为「该提交上
   `insync-verify` 已通过的产物」——工作流校验标签=版本、提交标题=`chore(insync): release
   v<version>`、存在 `conclusion == "success"` 的 verify 运行，然后 `gh run download` 那次
   运行的产物（工作流里没有任何 `cargo build`），重命名为四个平台资产、生成 `SHA256SUMS`、
   正文取 `docs/insync/CHANGELOG.md` 中该版本的条目，`gh release create --verify-tag
   --notes-file` 附带全部资产。版本与发布说明的唯一读取入口 `tools/insync-release.py` 由
-  `tools/tests/test_insync_release.py`（19 条，含「crate 版本不一致 / 仍继承 workspace 版本 /
-  缺条目 / 条目为空 / 自造分段标题 / 无日期条目」的负向对照）与 `insync-verify.yml` 的
-  `contracts` 任务在每次推送时校验；`test_product_version_contract.py` 改为只约束 BongoCat
-  自己的 crate。
-  **未完成**：本机验证只在 CI（见「已知剩余工作」与最终报告 §8.9），所以渠道的正确性
-  由推送后的实际运行证明。待办收尾 = 推 `feat/insync` → `insync-verify` 六个任务全绿 →
-  在该提交上打 `insync-v0.1.0` → `insync-release` 发布成功 → 把运行记录、资产名与校验和
-  写入最终报告，然后勾选此项。仍未接入 `bongocat-packaging`：发布的是裸二进制，无安装包、
-  无签名/公证、无自动更新（§8.4）。
+  `tools/tests/test_insync_release.py`（20 条，含「crate 版本不一致 / 仍继承 workspace 版本 /
+  缺条目 / 条目为空 / 自造分段标题 / 无日期条目 / 不该存在的触发器」的负向对照）与
+  `insync-verify.yml` 的 `contracts` 任务在每次推送时校验；`test_product_version_contract.py`
+  改为只约束 BongoCat 自己的 crate。
+  验证（详见最终报告 §7.2）：`insync-verify` run 38122874262（commit `1ed9d3ff`）六个任务
+  全绿 → 该提交上打附注标签 `insync-v0.1.0` 并推送 → `insync-release` run 38123464194
+  七步全绿，发布 [insync-v0.1.0](https://github.com/SU0510/BongoCat/releases/tag/insync-v0.1.0)
+  （四个平台资产 + `SHA256SUMS` + changelog 正文）。复核：下载 Release 资产后
+  `shasum -a 256 -c SHA256SUMS` 四个 `OK`，且与 verify run 的产物逐个哈希相同；负向对照
+  （版本不符的临时标签 `insync-v0.2.0`）在第一步即被拒绝、未创建任何 release，临时标签已删除。
+  仍未接入 `bongocat-packaging`：发布的是裸二进制，无安装包、无签名/公证、无自动更新（§8.4）。
 
 ## 已知剩余工作
 

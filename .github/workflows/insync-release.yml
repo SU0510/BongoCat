@@ -16,14 +16,12 @@ on:
   push:
     tags:
       - "insync-v*"
-  # Re-publishing after an external failure (an expired artifact, an API
-  # hiccup) must not require moving a tag, so the same release can be retried
-  # from here with the tag that already exists.
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: "Existing tag to publish, e.g. insync-v0.1.0"
-        required: true
+  # There is deliberately no `workflow_dispatch`: GitHub registers that trigger
+  # only for a workflow file on the repository's default branch, and this file
+  # lives on a feature branch, so it would be a trigger that can never fire
+  # (`gh workflow run` answers "Workflow does not have 'workflow_dispatch'
+  # trigger"). Re-publishing after an external failure is done by re-running the
+  # failed run (`gh run rerun <run-id>`): same tag, same commit, same checks.
 
 # The repository's default workflow permissions are read-only; the workflow's
 # own `permissions` key is what grants the release write access, so `contents:
@@ -42,7 +40,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.inputs.tag || github.ref }}
           # The release commit's subject is checked against the documented one,
           # so the history of the tag has to be present.
           fetch-depth: 0
@@ -51,7 +48,7 @@ jobs:
         id: release
         run: |
           set -euo pipefail
-          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          tag="${{ github.ref_name }}"
           version="$(python3 tools/insync-release.py version)"
           if [ "$tag" != "insync-v$version" ]; then
             echo "::error::tag '$tag' does not match the InSync version: expected 'insync-v$version'"
