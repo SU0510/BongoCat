@@ -63,7 +63,11 @@ impl CharacterSprites {
         }
         let index = index % clip.frames;
         let x = (index as u32) * self.frame_width;
-        Some(sheet.view(x, 0, self.frame_width, self.frame_height).to_image())
+        Some(
+            sheet
+                .view(x, 0, self.frame_width, self.frame_height)
+                .to_image(),
+        )
     }
 
     pub fn clip(&self, animation: &str) -> Option<AnimationClip> {
@@ -81,8 +85,8 @@ impl SpriteLibrary {
     pub fn load(manifest_path: &Path) -> Result<Self, SpriteError> {
         let text = std::fs::read_to_string(manifest_path)
             .map_err(|e| SpriteError::ManifestIo(e.to_string()))?;
-        let manifest: ManifestFile = serde_json::from_str(&text)
-            .map_err(|e| SpriteError::ManifestParse(e.to_string()))?;
+        let manifest: ManifestFile =
+            serde_json::from_str(&text).map_err(|e| SpriteError::ManifestParse(e.to_string()))?;
         let base = manifest_path.parent().unwrap_or(Path::new("."));
         Self::build(manifest, &|path| std::fs::read(base.join(path)).ok())
     }
@@ -259,7 +263,10 @@ mod tests {
         assert_eq!(f0.get_pixel(0, 0).0[0], 0);
         assert_eq!(f1.get_pixel(0, 0).0[0], 100);
         // index wrapping is safe, not a panic
-        assert_eq!(character.frame("idle", 5).unwrap().get_pixel(0, 0).0[0], 100);
+        assert_eq!(
+            character.frame("idle", 5).unwrap().get_pixel(0, 0).0[0],
+            100
+        );
         assert!(character.frame("missing", 0).is_none());
     }
 
@@ -284,7 +291,11 @@ mod tests {
             Err(SpriteError::SheetShape { .. })
         ));
 
-        std::fs::write(dir.join("v.json"), r#"{"format_version": 9, "characters": {}}"#).unwrap();
+        std::fs::write(
+            dir.join("v.json"),
+            r#"{"format_version": 9, "characters": {}}"#,
+        )
+        .unwrap();
         assert!(matches!(
             SpriteLibrary::load(&dir.join("v.json")),
             Err(SpriteError::ManifestVersion(9))
