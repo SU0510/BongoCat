@@ -112,6 +112,10 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 `cargo fmt --all -- --check` 与 `python3 -m unittest discover -s tools/tests` 122 项全绿。
 自 2026-10-11 起，这些命令不再在本机执行（见 §8 第 9 条与 goal 文档的验证策略），
 改由 `insync-verify` 工作流在三个平台上运行；本轮结果为 run 38119777698 全绿。
+角色工作那轮（run 38149755002）`cargo fmt --check` 抓到 6 处格式 diff（本地不跑
+fmt 的已知代价），修复后由 run 38149994327 复跑；素材与契约脚本
+（`validate_sprites.py`、`generate_ui_images.py --check`、`test_insync_release` 20 项、
+`test_release_changelog_contract` 12 项）仍在本机跑——它们不构建 Rust，不占 target。
 
 ## 5. macOS / Windows 真实验证情况
 
