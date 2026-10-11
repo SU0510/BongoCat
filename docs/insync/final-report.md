@@ -35,9 +35,12 @@
 
 **工程交付（E 组）— 大部分完成（见 §5/§7 的明确缺口）**
 
-- 79 个 InSync 自动化测试全部通过（见 §4）。
+- 六个 InSync crate 合计 88 个自动化测试全部通过（见 §4）。
 - macOS aarch64 实机构建 + 冒烟通过；Windows x86_64 交叉 clippy 检查通过，构建交给 CI。
 - 已推送到 `origin/feat/insync`，`.github/workflows/insync-verify.yml` 实际运行并逐项修好触发与构建问题（见 §7）。
+- 独立版本号与发布通道（ADR-0092）：InSync 从 0.1.0 起自成一套版本，`insync-v*` 标签由
+  `.github/workflows/insync-release.yml` 发布「该提交上 `insync-verify` 已通过的产物」，
+  四个平台资产 + `SHA256SUMS` + changelog 正文；仍是裸二进制（无安装包/签名，§8.4）。
 - Dockerfile + docker-compose + 部署/备份文档完成。
 
 ## 2. 最终技术架构
@@ -54,7 +57,7 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 ```
 
 细节见 `docs/insync/technical-design.md`；协议见 `docs/insync/protocol.md`；
-决策见 `docs/adr/0089/0090/0091`。
+决策见 `docs/adr/0089/0090/0091/0092`。
 
 ## 3. BongoCat 中保留、修改和删除的模块
 
@@ -94,7 +97,7 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 | bongocat-audio（回归：启用 wav feature 后原有测试） | 15（+1 ignored） | ✅ |
 | 素材校验 `validate_sprites.py` | 26 sheet | ✅ |
 | 素材校验 `validate_alarm.py`（格式/电平/削波/音高） | 1 WAV | ✅ |
-| BongoCat 工具契约测试 `tools/tests/` | 102 | ✅（含 workspace 版本契约与 workflow 校验） |
+| BongoCat 工具契约测试 `tools/tests/` | 121 | ✅（含 product version 契约、InSync 版本/发布契约 `test_insync_release.py` 19 项与 workflow 校验；其中 19 项由 `insync-verify` 的 `contracts` 任务在每次推送重跑，全套在 PR 触发的 `verify.yml` 上跑） |
 
 命令：`cargo test --locked -p insync-core -p insync-server -p insync-client -p insync-sprite
 -p insync-pet-window -p insync-app -p bongocat-audio`。六个 InSync crate 现在合计 **88**
@@ -103,7 +106,7 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 在 Linux 任务上跑通。
 另有 `cargo clippy --locked <六个 insync crate> -p bongocat-audio --all-targets -- -D warnings`
 全绿（pet-window 另在 `x86_64-pc-windows-msvc` target 上全绿），以及
-`cargo fmt --all -- --check` 与 `python3 -m unittest discover -s tools/tests` 102 项全绿。
+`cargo fmt --all -- --check` 与 `python3 -m unittest discover -s tools/tests` 121 项全绿。
 自 2026-10-11 起，这些命令不再在本机执行（见 §8 第 9 条与 goal 文档的验证策略），
 改由 `insync-verify` 工作流在三个平台上运行；本轮结果为 run 38119777698 全绿。
 
@@ -245,6 +248,7 @@ debug 构建上迭代，随后用同一份工具在**安装的 CI release 产物
 | 预览 GIF / contact-sheet | `target/insync-preview/` | 本地产物（未入库） |
 | 冒烟证据 | `target/insync-preview/smoke-evidence.txt` | 本地产物 |
 | CI 工作流 | `.github/workflows/insync-verify.yml` | 已提交并推送，`feat/insync` 上实际运行 ✅ |
+| 发布通道（ADR-0092） | `.github/workflows/insync-release.yml`、`tools/insync-release.py`、`docs/insync/CHANGELOG.md` | 已提交 ✅；`insync-v*` 标签 → Release，发布内容 = 该提交上 `insync-verify` 已通过的产物 |
 | Windows 交叉验证 | `cargo xwin clippy --target x86_64-pc-windows-msvc`（六 crate，`-D warnings`） | 本机通过 ✅ |
 | 部署配置 | `Dockerfile`、`docker-compose.yml`、`docs/insync/deployment.md` | 已提交 ✅ |
 
@@ -319,9 +323,11 @@ CI 补上 Linux/macOS/Windows 三个平台的真机测试后，又暴露出两�
    由 CI 的 `docker-server` job（构建镜像 + 启动 + 探测 `/health`）验证。
 
 另外，`tools/tests/test_product_version_contract.py` 捕获到一个此前未被发现的
-契约违反：六个 InSync crate 使用硬编码 `version = "0.1.0"`，而仓库要求所有
-workspace 成员继承 `[workspace.package].version`。已改为
-`version.workspace = true` 并同步 `Cargo.lock`（改为 2.2.0）。
+契约违反：六个 InSync crate 没有声明版本，而仓库要求所有 workspace 成员继承
+`[workspace.package].version`。当时的处理是改为 `version.workspace = true` 并同步
+`Cargo.lock`（2.2.0）——这解决了契约问题，但把 InSync 的版本号绑死在 BongoCat 上。
+后来按 ADR-0092 重新决定：InSync 用自己的版本号（0.1.0），六个 crate 显式声明，
+契约测试改为只约束 BongoCat 自己的 crate；两个决定的前后关系写在 ADR-0092 里。
 
 修复后的最终运行：**run 38108110093（commit `326408e1`）五个 job 全绿** ——
 `assets`、`test-linux`、`build-windows`、`docker-server`、`build-macos` 全部
@@ -345,8 +351,10 @@ job 全绿**，本机安装的二进制即该 run 的产物，并在其上复验
    运行确认**（分层窗口行为、DPI、托盘）。
 3. **OS 原生通知**：当前通知为应用内通知中心 + 声音 + 桌宠动画；未接
    UNUserNotificationCenter / Windows Toast（涉及打包与权限，v2 工作）。
-4. **安装包流水线**：InSync 未接入 `bongocat-packaging`（app/dmg/NSIS）；
-   CI 产出裸二进制。安装器、签名、自动更新均未实现。
+4. **安装包流水线**：InSync 仍**未**接入 `bongocat-packaging`（app/dmg/NSIS），
+   也没有签名、公证与自动更新——发布通道（ADR-0092）发的是裸二进制 +
+   校验和 + changelog 正文，正文里如实写明未签名与平台限制。安装器、签名与
+   自动更新仍是 v2 工作。
 5. **公网端到端**：无授权的服务器/域名，未做跨公网 WSS 的真机联调（本地
    TCP 集成测试覆盖同一路径，但 TLS/代理行为未实测）。
 6. **素材精修**：像素画为程序化生成，质量达标但可继续精修（尤其 walk 与
@@ -361,9 +369,10 @@ job 全绿**，本机安装的二进制即该 run 的产物，并在其上复验
    `target/` 涨到 17G 并让 228GB 磁盘写满（Bash 工具连日志文件都写不出来），
    只能删掉 `target/` 恢复。此后每次验证 = 推送分支 + 读 `insync-verify` 结果。
    两点后果如实说明：其一，未推送的改动在本机没有任何自动化验证；其二，
-   **只改文档的提交不会触发 `insync-verify`**（它的 `paths` 不含 `docs/`），
-   这类提交由「父提交的 CI 已全绿 + 改动不含任何构建输入」共同保证，而不是
-   重新跑一遍 CI。
+   **只改文档的提交不会触发 `insync-verify`**（它的 `paths` 不含 `docs/`，唯一例外是
+   `docs/insync/CHANGELOG.md`——发布正文取自它、分段标题也由契约测试校验，所以它算
+   构建输入），这类提交由「父提交的 CI 已全绿 + 改动不含任何构建输入」共同保证，
+   而不是重新跑一遍 CI。
 
 ## 9. 需要用户亲自完成的最少事项
 
@@ -376,6 +385,7 @@ job 全绿**，本机安装的二进制即该 run 的产物，并在其上复验
 2. **提供一台公网服务器 + 域名**（可选）：按 `docs/insync/deployment.md`
    执行 `docker compose up -d --build` + 反向代理 TLS；把地址填进两端
    客户端设置。
-3. **决定 InSync 的发布渠道**：是否接入 bongocat-packaging 生成安装包/
-   自动更新，或保持 CI 裸二进制分发。
+3. **决定 InSync 的发布渠道要不要再往前一步**：现在已有独立版本号与发布通道
+   （ADR-0092：`insync-v*` 标签 → 裸二进制 + 校验和 + changelog 正文），
+   仍未决定的是要不要接入 bongocat-packaging 生成安装包、签名/公证与自动更新。
 4. （如需合入 master）基于 `feat/insync` 创建 PR。

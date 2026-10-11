@@ -35,6 +35,24 @@ mkdir -p /srv/insync-data && sudo chown 1000:1000 /srv/insync-data
 
 镜像内已安装 `curl`，compose 的健康检查据此探测 `/health`。
 
+### 2.1 裸二进制部署（从 Release 下载）
+
+不使用 Docker 时，服务端二进制可以直接从 GitHub Release 取：
+
+| 平台 | 资产 |
+| --- | --- |
+| Linux（最常见的 VPS 场景） | **没有预编译资产**：用 Docker（§2）或自行 `cargo build -p insync-server --release` |
+| macOS 服务器（Apple Silicon） | `insync-server-macos-aarch64`（Intel Mac 需自行构建） |
+| Windows 服务器 | `insync-server-windows-x86_64.exe` |
+| macOS 桌宠（Apple Silicon） | `insync-app-macos-aarch64` |
+| Windows 桌宠 | `insync-app-windows-x86_64.exe` |
+
+Release 正文里的 `SHA256SUMS` 可与下载到的文件核对（`shasum -a 256 -c SHA256SUMS`）。
+这些是**裸二进制**：macOS 版未签名、未公证（`xattr -d com.apple.quarantine` 或右键
+「打开」），Windows 版可能触发 SmartScreen；版本号、标签与通道见
+`docs/adr/0092-insync-versioning-and-release-channel.md`。服务器与桌面应用请成对升级
+（协议版本由 `GET /version` 报告）。
+
 ## 3. 反向代理（HTTPS/WSS）
 
 Caddy 示例（自动签发证书）：
@@ -100,12 +118,12 @@ cargo xwin clippy --target x86_64-pc-windows-msvc \
 
 ## 7. 客户端桌面应用
 
-当前仓库提供 `cargo build -p insync-app`（macOS/Windows）产出的裸二进制，
-尚未接入安装包流水线（BongoCat 的 `bongocat-packaging` 不打 InSync 包）。
-开发运行：`cargo run -p insync-app`；正式发布打包见
+桌面应用的裸二进制（macOS aarch64 / Windows x86_64）从 GitHub Release 下载，资产名见
+§2.1；本地开发用 `cargo run -p insync-app`。仍未接入安装包流水线（BongoCat 的
+`bongocat-packaging` 不打 InSync 包，也没有签名/公证/自动更新），缺口清单见
 `docs/insync/final-report.md` 的「未完成与待办」。
 
-## 7. 安全清单
+## 8. 安全清单
 
 - [x] 密码 Argon2id 哈希；令牌仅存 SHA-256
 - [x] 全部关系数据经服务端鉴权（见 `crates/insync-server/tests/integration.rs`

@@ -97,6 +97,23 @@ InSync 是面向情侣（尤其异地情侣）的 Windows/macOS 桌面陪伴应�
 读取（落在默认分区），未知分区名被忽略而不是解析失败；损坏时按既有「最近有效
 备份 → 默认值」处理，不新增版本迁移分支。
 
+## 版本号与发布
+
+InSync 用自己的版本号（当前 `0.1.0`），与 BongoCat 的 `[workspace.package].version`
+无关：六个 `insync-*` crate 各自显式声明该版本，由
+`tools/tests/test_insync_release.py` 断言它们一致、且 `Cargo.lock` 记录同一个值。
+发布标签为 `insync-v<version>`（不匹配 BongoCat `release.yml` 的 `v*`），决策背景见
+ADR-0092。
+
+发布内容 = 该提交上已通过的 CI 产物，不重新构建：`insync-release` 工作流按标签读出
+版本、拒绝与版本不符的标签或非 `chore(insync): release v<version>` 的提交、要求该提交
+存在 `conclusion == "success"` 的 `insync-verify` 运行，再下载那次运行的产物，重命名成
+四个平台资产（`insync-{app,server}-{macos-aarch64,windows-x86_64.exe}`），生成
+`SHA256SUMS`，正文取 `docs/insync/CHANGELOG.md` 中该版本的条目。版本与发布说明的唯一
+读取入口是 `tools/insync-release.py`（工作流与测试共用）。
+
+仍是裸二进制：无安装包、无签名/公证、无自动更新，正文如实写明平台与未验证项。
+
 ## 错误与恢复要点
 
 - 网络断开：WS 自动重连（指数退避，上限 60s），outbox 保留重试；重要数据

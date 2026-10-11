@@ -1,0 +1,38 @@
+# InSync 更新日志
+
+InSync 是独立于 BongoCat 的产品：版本号、标签（`insync-v*`）与发布通道都自成一套，
+见 `docs/adr/0092-insync-versioning-and-release-channel.md`。
+
+每个版本在这里写一条 `## <version> - <date>` 条目，`insync-release` 工作流按标签取出
+对应条目当作发布说明；缺条目或条目为空时发布会直接失败，不会发出一个没人能描述的版本。
+分段标题沿用 `docs/changelog-conventions.md` 的固定词表（本文件用中文列）。
+
+改动先写进 `## Unreleased`，发布提交（`chore(insync): release v<version>`）再把该标题
+改成 `## <version> - <date>`：这样「尚未发布的改动」和「已经发布的版本」在文件里是
+两种标题，读者不会把待发布内容当成已发布版本。
+
+## Unreleased
+
+### ⚠️ 升级说明
+
+- 首次发布，没有可升级的旧版本。发布的是**裸二进制**而非安装包：macOS 版未签名、未公证
+  （首次打开需要右键「打开」），Windows 版可能触发 SmartScreen 提示。
+- macOS 只提供 Apple Silicon（aarch64），Windows 只提供 x86_64。Windows 版通过了 CI 在
+  Windows runner 上的 clippy/单元与集成测试/构建，但**尚未在真实 Windows 桌面会话中人工
+  运行过**（分层窗口、DPI、托盘仍待实机确认）。
+- 这是 0.x：本地数据格式与 macOS/Windows 之间的行为仍可能不兼容地变化。服务端与客户端
+  请成对升级。
+
+### ✨ 新功能
+
+- 原创像素桌宠「Momo」：13 个动画、随机生活动作、拖动、点击反应与戳戳反应，透明置顶窗口。
+- 双人实时层：消息、留言、戳戳、在线状态，以及共同专注（邀请、接受、倒计时、暂停、提前
+  结束、勿扰）；断线重连后按服务端状态收敛。
+- 共享日常工具：共享与个人待办、便签、纪念日、闹钟与时钟；个人数据只存本机，永不共享。
+- 可自托管服务端：axum + SQLite（WAL）、邀请码配对、密码哈希与 token 轮换/撤销、版本化
+  实时事件协议、Docker 部署（`docs/insync/deployment.md`）。
+
+### 🎨 界面
+
+- 面板改用与桌宠同一套取色的暖色主题（浅色 cream / 深色 cocoa，跟随系统外观），重做页头、
+  八个带图标的标签磁贴、卡片、聊天气泡与空态插图，并记住上次停留的分区。

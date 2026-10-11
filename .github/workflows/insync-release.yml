@@ -1,0 +1,154 @@
+# InSync's release channel: an `insync-v*` tag publishes the binaries that
+# `insync-verify` already built and tested for that commit, with their SHA-256
+# checksums and the changelog entry for the version.
+#
+# It publishes, it never builds. A tag that skipped verification, a version the
+# crates disagree about, a release commit that is titled like a feature commit,
+# or a version whose changelog entry was never written all fail here in
+# seconds, instead of shipping bits nobody has run.
+#
+# BongoCat's own pipeline (`release.yml`, `v*` tags, installers, signed update
+# manifest) is a separate channel and is untouched: the two products version and
+# ship independently (ADR-0092), and `insync-v*` does not match `v*`.
+name: insync-release
+
+on:
+  push:
+    tags:
+      - "insync-v*"
+  # Re-publishing after an external failure (an expired artifact, an API
+  # hiccup) must not require moving a tag, so the same release can be retried
+  # from here with the tag that already exists.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to publish, e.g. insync-v0.1.0"
+        required: true
+
+# The repository's default workflow permissions are read-only; the workflow's
+# own `permissions` key is what grants the release write access, so `contents:
+# write` is load-bearing. `actions: read` is what `gh run download` needs.
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: insync-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+          # The release commit's subject is checked against the documented one,
+          # so the history of the tag has to be present.
+          fetch-depth: 0
+
+      - name: Read the version and refuse a tag or commit that does not match it
+        id: release
+        run: |
+          set -euo pipefail
+          tag="${{ github.event.inputs.tag || github.ref_name }}"
+          version="$(python3 tools/insync-release.py version)"
+          if [ "$tag" != "insync-v$version" ]; then
+            echo "::error::tag '$tag' does not match the InSync version: expected 'insync-v$version'"
+            exit 1
+          fi
+          subject="$(git log -1 --pretty=%s)"
+          if [ "$subject" != "chore(insync): release v$version" ]; then
+            echo "::error::the commit tagged $tag is titled '$subject'; an InSync release commit must be titled 'chore(insync): release v$version'"
+            exit 1
+          fi
+          printf 'tag=%s\nversion=%s\n' "$tag" "$version" >> "$GITHUB_OUTPUT"
+
+      - name: Require a green insync-verify run for the tagged commit
+        id: verified
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          sha="$(git rev-parse HEAD)"
+          # Any successful run of that commit is enough: same commit, same
+          # inputs, and its artifacts are the ones that passed. A commit that
+          # was never pushed to the branch has no such run at all.
+          run_id="$(gh api \
+            "repos/$GITHUB_REPOSITORY/actions/workflows/insync-verify.yml/runs?head_sha=$sha&per_page=100" \
+            --jq '[.workflow_runs[] | select(.conclusion == "success")] | first | .id // empty')"
+          if [ -z "$run_id" ]; then
+            echo "::error::no successful insync-verify run for $sha: push the branch, let it pass, and tag that commit"
+            exit 1
+          fi
+          printf 'run_id=%s\n' "$run_id" >> "$GITHUB_OUTPUT"
+
+      - name: Download what that run verified
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          for artifact in insync-macos-aarch64 insync-windows-x86_64; do
+            gh run download "${{ steps.verified.outputs.run_id }}" -n "$artifact" -D "dist/$artifact" || {
+              echo "::error::cannot download $artifact from run ${{ steps.verified.outputs.run_id }}; artifacts expire, so re-run insync-verify for this commit and publish again"
+              exit 1
+            }
+          done
+          # Asset names are chosen here so a downloader can tell the platform
+          # and the role apart; docs/insync/deployment.md and the release notes
+          # use these names.
+          install -m 0755 dist/insync-macos-aarch64/insync-app dist/insync-app-macos-aarch64
+          install -m 0755 dist/insync-macos-aarch64/insync-server dist/insync-server-macos-aarch64
+          install -m 0755 dist/insync-windows-x86_64/insync-app.exe dist/insync-app-windows-x86_64.exe
+          install -m 0755 dist/insync-windows-x86_64/insync-server.exe dist/insync-server-windows-x86_64.exe
+          rm -rf dist/insync-macos-aarch64 dist/insync-windows-x86_64
+
+      - name: Checksum every asset
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum insync-* > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Compose the notes from the changelog entry
+        run: |
+          set -euo pipefail
+          version="${{ steps.release.outputs.version }}"
+          sha="$(git rev-parse HEAD)"
+          python3 tools/insync-release.py notes "$version" > /tmp/entry.md
+          test -s /tmp/entry.md || {
+            echo "::error::the changelog produced empty notes for $version" >&2
+            exit 1
+          }
+          {
+            echo "InSync $version 的桌面应用与服务端二进制。"
+            echo
+            echo "- 这些二进制就是提交 \`$sha\` 通过 [insync-verify](https://github.com/$GITHUB_REPOSITORY/actions/runs/${{ steps.verified.outputs.run_id }}) 的那一份：素材漂移检查、Linux 共享 crate 测试、macOS 与 Windows 的 clippy/测试/构建、Docker 镜像冒烟全部通过后才发布。"
+            echo "- 发布的是**裸二进制**，不是安装包：macOS 版未签名/未公证（首次打开需右键「打开」），Windows 版可能触发 SmartScreen；macOS 只有 Apple Silicon（aarch64），Windows 只有 x86_64。"
+            echo "- 服务端推荐用 Docker 部署（仓库内 \`docs/insync/deployment.md\`），\`insync-server-*\` 是给不用容器的人准备的。"
+            echo "- 校验和见随附的 \`SHA256SUMS\`。"
+            echo
+            echo "## 更新日志"
+            echo
+            cat /tmp/entry.md
+            echo
+            echo "## 校验和"
+            echo
+            echo '```'
+            cat dist/SHA256SUMS
+            echo '```'
+          } > release-notes.md
+          test -s release-notes.md
+
+      - name: Publish the release and attach every asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gh release create "${{ steps.release.outputs.tag }}" \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --title "InSync ${{ steps.release.outputs.version }}" \
+            --notes-file release-notes.md \
+            dist/*

@@ -4353,7 +4353,7 @@ dependencies = [
 
 [[package]]
 name = "insync-app"
-version = "2.2.0"
+version = "0.1.0"
 dependencies = [
  "async-io",
  "bongocat-audio",
@@ -4377,7 +4377,7 @@ dependencies = [
 
 [[package]]
 name = "insync-client"
-version = "2.2.0"
+version = "0.1.0"
 dependencies = [
  "futures-util",
  "insync-core",
@@ -4392,7 +4392,7 @@ dependencies = [
 
 [[package]]
 name = "insync-core"
-version = "2.2.0"
+version = "0.1.0"
 dependencies = [
  "proptest",
  "serde",
@@ -4403,7 +4403,7 @@ dependencies = [
 
 [[package]]
 name = "insync-pet-window"
-version = "2.2.0"
+version = "0.1.0"
 dependencies = [
  "block2 0.6.2",
  "image",
@@ -4419,7 +4419,7 @@ dependencies = [
 
 [[package]]
 name = "insync-server"
-version = "2.2.0"
+version = "0.1.0"
 dependencies = [
  "argon2",
  "axum",
@@ -4438,7 +4438,7 @@ dependencies = [
 
 [[package]]
 name = "insync-sprite"
-version = "2.2.0"
+version = "0.1.0"
 dependencies = [
  "image",
  "rand 0.10.3",

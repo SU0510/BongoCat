@@ -1,6 +1,7 @@
 # InSync CI: builds and tests every InSync crate on both platforms.
-# BongoCat's own release pipeline (release.yml) is untouched; InSync ships
-# via this workflow until it gets a packaging pipeline of its own.
+# A green run for a commit is what `insync-release.yml` publishes: a tag is only
+# released when this workflow succeeded for the tagged commit. BongoCat's own
+# pipeline (release.yml) is untouched.
 name: insync-verify
 
 on:
@@ -17,14 +18,33 @@ on:
       - "tools/insync-sprites/**"
       - "tools/insync-audio/**"
       - "tools/insync-ui/**"
+      - "tools/insync-release.py"
+      - "tools/tests/test_insync_*.py"
+      # The release notes are taken from this file by tag, and the contracts
+      # check its headings, so an edit here is a build input like any other.
+      - "docs/insync/CHANGELOG.md"
+      - ".github/workflows/insync-release.yml"
       - "Cargo.toml"
       - "Cargo.lock"
       - ".github/workflows/insync-verify.yml"
+  # Kept identical to the push list: a pull request that changes a Cargo file or
+  # an asset must run the same jobs a push would, not fall through silently.
   pull_request:
     paths:
       - "crates/insync-*/**"
+      - "crates/bongocat-audio/**"
+      - "crates/bongocat-storage/**"
+      - "crates/bongocat-log/**"
+      - "resources/insync/**"
+      - "tools/insync-sprites/**"
       - "tools/insync-audio/**"
       - "tools/insync-ui/**"
+      - "tools/insync-release.py"
+      - "tools/tests/test_insync_*.py"
+      - "docs/insync/CHANGELOG.md"
+      - ".github/workflows/insync-release.yml"
+      - "Cargo.toml"
+      - "Cargo.lock"
       - ".github/workflows/insync-verify.yml"
 
 concurrency:
@@ -62,6 +82,22 @@ jobs:
       # unlike the PNGs it is stable byte for byte.
       - name: No drift against the committed alarm chime
         run: python3 tools/insync-audio/generate_alarm.py --check
+
+  # The release channel's own contracts: that the six crates agree on one
+  # version, that the InSync changelog has an entry for it using the shared
+  # section vocabulary, and that `insync-release.yml` only ever publishes
+  # artifacts a green run of this workflow produced. Pure file parsing, so it
+  # needs neither Rust nor a platform, and it runs here so a bad version or a
+  # missing changelog entry fails on the push rather than at tag time.
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: InSync version and release contracts
+        run: python3 -m unittest discover -s tools/tests -p 'test_insync_*.py'
 
   # `insync-core`, `insync-server`, `insync-client` and `insync-sprite` have no
   # GPUI and no platform window backend, so they are linted and tested on Linux

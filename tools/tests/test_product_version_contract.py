@@ -75,8 +75,17 @@ class ProductVersionContractTests(unittest.TestCase):
         self.assertRegex(version, r"^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$")
 
     def test_workspace_members_inherit_the_product_version(self):
-        members = workspace_members()
-        self.assertTrue(members, "the workspace must contain crates")
+        # InSync is a second product with its own version channel (ADR-0092), so
+        # its crates carry an explicit version instead of inheriting this one;
+        # that the six of them agree is enforced by
+        # tools/tests/test_insync_release.py. Only the BongoCat product crates
+        # are bound to the workspace version.
+        members = [
+            member
+            for member in workspace_members()
+            if not Path(member).name.startswith("insync-")
+        ]
+        self.assertTrue(members, "the workspace must contain product crates")
 
         for member in members:
             with self.subTest(member=member):
