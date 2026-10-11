@@ -53,9 +53,9 @@ jobs:
       - name: Format
         run: cargo fmt -p insync-core -p insync-server -p insync-client -p insync-sprite -p insync-pet-window -p insync-app -- --check
       - name: Clippy
-        run: cargo clippy --locked -p insync-core -p insync-server -p insync-client -p insync-sprite -p insync-app --all-targets -- -D warnings
+        run: cargo clippy --locked -p insync-core -p insync-server -p insync-client -p insync-sprite -p insync-pet-window -p insync-app --all-targets -- -D warnings
       - name: Tests
-        run: cargo test --locked -p insync-core -p insync-server -p insync-client -p insync-sprite -p insync-app
+        run: cargo test --locked -p insync-core -p insync-server -p insync-client -p insync-sprite -p insync-pet-window -p insync-app
 
   build-macos:
     runs-on: macos-14
@@ -81,7 +81,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.97.1
-        targets: x86_64-pc-windows-msvc
+        with:
+          targets: x86_64-pc-windows-msvc
       - uses: Swatinem/rust-cache@v2
       - name: Clippy (all InSync crates, Windows host = real Win32 target)
         run: cargo clippy --locked -p insync-core -p insync-server -p insync-client -p insync-sprite -p insync-pet-window -p insync-app --all-targets -- -D warnings
