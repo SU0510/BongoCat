@@ -98,10 +98,8 @@ fn now_ms() -> i64 {
 }
 
 /// Opens the hub window and stores the handle in the coordinator.
-pub fn ensure_hub(cx: &mut App) {
-    let Some(coordinator) = cx.try_global::<Coordinator>() else {
-        return;
-    };
+fn open_hub(cx: &mut App) -> Option<HubWindowHandle> {
+    let coordinator = cx.try_global::<Coordinator>()?;
     let core = Arc::clone(&coordinator.core);
     let language = core.language();
     let options = WindowOptions {
@@ -126,34 +124,123 @@ pub fn ensure_hub(cx: &mut App) {
         *view_slot_for_builder.borrow_mut() = Some(view.clone());
         cx.new(|cx| Root::new(view, window, cx))
     });
-    if let Ok(window) = opened {
-        let has_view = view_slot.borrow().is_some();
-        if has_view && let Some(coordinator) = cx.try_global::<Coordinator>() {
-            *coordinator
-                .hub
-                .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner) =
-                Some(HubWindowHandle { window });
-        }
+    let window = opened.ok()?;
+    view_slot
+        .borrow()
+        .is_some()
+        .then_some(HubWindowHandle { window })
+}
+
+fn store_hub(cx: &App, handle: HubWindowHandle) {
+    if let Some(coordinator) = cx.try_global::<Coordinator>() {
+        *coordinator
+            .hub
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(handle);
     }
 }
 
-/// Closes the hub if open; reopening creates a fresh view.
-pub fn toggle_hub(cx: &mut App) {
-    let existing = cx.try_global::<Coordinator>().and_then(|coordinator| {
+/// Takes the stored handle if its window is still alive, together with whether
+/// that window is the active one.
+///
+/// A window the user closed with its own close button leaves the stored handle
+/// pointing at a window that no longer exists; `is_active` answers `None` for
+/// it, and dropping the handle here is what lets the next "Open Panel" build a
+/// fresh window instead of acting on a dead one.
+fn take_live_hub(cx: &mut App) -> Option<(HubWindowHandle, bool)> {
+    let handle = cx.try_global::<Coordinator>().and_then(|coordinator| {
         coordinator
             .hub
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
             .take()
-    });
-    if let Some(handle) = existing {
-        let _ = handle.window.update(cx, |_, window, _| {
-            window.remove_window();
-        });
-        return;
+    })?;
+    let active = handle.window.is_active(cx)?;
+    Some((handle, active))
+}
+
+/// Brings the panel to the front, using the window we already have.
+///
+/// Ordering the window front is not enough on its own: InSync is an accessory
+/// (menu bar) app, so it is never the active app unless it says so, and an
+/// inactive app's window is placed behind every other app's window. Creating
+/// the panel without this left it buried underneath whatever the user was
+/// working in — with the pet panel, which floats above normal windows, still
+/// visible on top — which is why "Open Panel" looked like it did nothing.
+fn raise_hub(cx: &mut App, handle: HubWindowHandle) {
+    cx.activate(true);
+    let _ = handle
+        .window
+        .update(cx, |_, window, _| window.activate_window());
+    store_hub(cx, handle);
+}
+
+/// Shows the panel: opens the window when it does not exist, otherwise raises
+/// the existing one.
+pub fn show_hub(cx: &mut App) {
+    apply_gesture(cx, HubGesture::Show);
+}
+
+/// Pet context click: closes a panel that is already in front, and raises one
+/// that is not (a closed or hidden-away panel must never swallow the gesture).
+pub fn toggle_hub(cx: &mut App) {
+    apply_gesture(cx, HubGesture::Toggle);
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HubGesture {
+    /// The "Open Panel" menu item: show the panel, never close it.
+    Show,
+    /// The pet's context click, which may close a panel that is already in front.
+    Toggle,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum HubIntent {
+    Open,
+    Close,
+}
+
+/// Resolves a gesture and what is known about the window into what to do.
+///
+/// `window_state` is `Some(active)` for a live window and `None` when there is
+/// none (or the stored handle points at a window that no longer exists).
+///
+/// The two entry points differ in exactly one case: a panel that is already the
+/// active window. "Open Panel" still opens — closing the panel that the app had
+/// opened at startup is what made the menu item look like it did nothing —
+/// while the pet's click closes it.
+fn intent(gesture: HubGesture, window_state: Option<bool>) -> HubIntent {
+    match (gesture, window_state) {
+        (HubGesture::Show, _) => HubIntent::Open,
+        (HubGesture::Toggle, Some(true)) => HubIntent::Close,
+        (HubGesture::Toggle, Some(false) | None) => HubIntent::Open,
     }
-    ensure_hub(cx);
+}
+
+fn apply_gesture(cx: &mut App, gesture: HubGesture) {
+    let live = take_live_hub(cx);
+    match intent(gesture, live.as_ref().map(|(_, active)| *active)) {
+        HubIntent::Open => match live {
+            Some((handle, _)) => raise_hub(cx, handle),
+            None => {
+                if let Some(handle) = open_hub(cx) {
+                    raise_hub(cx, handle);
+                }
+            }
+        },
+        HubIntent::Close => {
+            if let Some((handle, _)) = live {
+                let closed = handle
+                    .window
+                    .update(cx, |_, window, _| window.remove_window())
+                    .is_ok();
+                if !closed {
+                    raise_hub(cx, handle);
+                }
+            }
+        }
+    }
 }
 
 impl HubView {
@@ -1770,5 +1857,34 @@ impl gpui_kit::Render for HubView {
             .bg(rgb(0xfff8f0))
             .child(bar)
             .child(content)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The menu item says "Open Panel", so it opens the panel the app already
+    /// created at startup instead of closing it.
+    #[test]
+    fn open_panel_never_closes_an_existing_panel() {
+        assert_eq!(intent(HubGesture::Show, Some(true)), HubIntent::Open);
+        assert_eq!(intent(HubGesture::Show, Some(false)), HubIntent::Open);
+        assert_eq!(intent(HubGesture::Show, None), HubIntent::Open);
+    }
+
+    /// The pet's click closes a panel the user can actually see, and raises one
+    /// that is buried behind other windows instead of making it disappear.
+    #[test]
+    fn pet_click_closes_only_a_panel_that_is_in_front() {
+        assert_eq!(intent(HubGesture::Toggle, Some(true)), HubIntent::Close);
+        assert_eq!(intent(HubGesture::Toggle, Some(false)), HubIntent::Open);
+    }
+
+    /// A window the user closed with its close button leaves no state to act on,
+    /// so the next gesture has to build a fresh window rather than do nothing.
+    #[test]
+    fn a_gesture_without_a_live_window_opens_one() {
+        assert_eq!(intent(HubGesture::Toggle, None), HubIntent::Open);
     }
 }

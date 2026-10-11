@@ -17,8 +17,8 @@ use objc2::runtime::AnyObject;
 use objc2::runtime::NSObjectProtocol;
 use objc2::{DefinedClass, MainThreadOnly, define_class, msg_send};
 use objc2_app_kit::{
-    NSApplication, NSBackingStoreType, NSPanel, NSScreen, NSView, NSWindowCollectionBehavior,
-    NSWindowStyleMask,
+    NSApplication, NSBackingStoreType, NSColor, NSPanel, NSScreen, NSView,
+    NSWindowAnimationBehavior, NSWindowCollectionBehavior, NSWindowStyleMask,
 };
 use objc2_core_foundation::CFData;
 use objc2_core_foundation::CFRetained;
@@ -186,6 +186,12 @@ impl MacPetWindow {
         );
         panel.setOpaque(false);
         panel.setHasShadow(false);
+        panel.setAnimationBehavior(NSWindowAnimationBehavior::None);
+        // `setOpaque(false)` only tells AppKit that the window is not opaque;
+        // it still fills the frame with `backgroundColor`, which defaults to
+        // the opaque `windowBackgroundColor`. Without this the pet stands on a
+        // solid rectangle.
+        panel.setBackgroundColor(Some(&NSColor::clearColor()));
         panel.setLevel(window_level(config.always_on_top));
         panel.setCollectionBehavior(
             NSWindowCollectionBehavior::CanJoinAllSpaces

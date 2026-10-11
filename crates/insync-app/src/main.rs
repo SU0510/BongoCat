@@ -32,8 +32,16 @@ fn main() {
                 gpui_kit::init(cx);
             }
             // tray installation needs a live NSApplication; keep it after
-            // the GPUI platform is up (same order as BongoCat's tray)
-            let tray = tray::install(icon, &core.language()).ok();
+            // the GPUI platform is up (same order as BongoCat's tray). A tray
+            // that cannot be installed takes every menu action with it, so the
+            // reason goes to stderr instead of disappearing.
+            let tray = match tray::install(icon, &core.language()) {
+                Ok(tray) => Some(tray),
+                Err(error) => {
+                    report(&format!("insync-app: tray unavailable: {error}"));
+                    None
+                }
+            };
             gpui_kit::component::theme::Theme::global_mut(cx)
                 .notification
                 .placement = gpui_kit::Anchor::BottomRight;
@@ -80,7 +88,11 @@ fn main() {
                         if let Some(action) = tray.try_action() {
                             match action {
                                 tray::TrayAction::OpenHub => {
-                                    cx.update(hub::toggle_hub);
+                                    // "Open Panel" opens and focuses: toggling
+                                    // here closed the panel the app had already
+                                    // opened at startup, which read as "the
+                                    // menu item does nothing".
+                                    cx.update(hub::show_hub);
                                 }
                                 tray::TrayAction::PokePartner => {
                                     let now = std::time::SystemTime::now()
@@ -128,8 +140,10 @@ fn main() {
             })
             .detach();
 
-            // open the hub once at startup so the user can sign in
-            hub::ensure_hub(cx);
+            // open the hub once at startup so the user can sign in; the show
+            // path also activates the app, without which the window would be
+            // ordered behind whatever the user already had in front
+            hub::show_hub(cx);
         });
 }
 
