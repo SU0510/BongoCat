@@ -193,9 +193,11 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 | Windows 交叉验证 | `cargo xwin clippy --target x86_64-pc-windows-msvc`（六 crate，`-D warnings`） | 本机通过 ✅ |
 | 部署配置 | `Dockerfile`、`docker-compose.yml`、`docs/insync/deployment.md` | 已提交 ✅ |
 
-CI 于 `326408e1` 产出的 release 二进制哈希（`insync-macos-aarch64`：
-`insync-app` = `b58b5b1a…`、`insync-server` = `293f0ddd…`；
-`insync-windows-x86_64`：`insync-app.exe` = `fc273b9f…`、
+CI 产出的 release 二进制哈希（`insync-macos-aarch64`：当前安装的来自
+`3939521b`（run 38113466225，含 §5.1 的两处修复）`insync-app` =
+`8e46e665…`；此前的 `326408e1`（run 38108110093）`insync-app` =
+`b58b5b1a…`。`insync-server` 两次均为 `293f0ddd…`；
+`insync-windows-x86_64`（`326408e1`）：`insync-app.exe` = `fc273b9f…`、
 `insync-server.exe` = `ba017f4a…`），其中 macOS 两份已**安装到本机**：
 
 | 安装位置 | 内容 | 说明 |
@@ -203,8 +205,8 @@ CI 于 `326408e1` 产出的 release 二进制哈希（`insync-macos-aarch64`：
 | `~/Applications/InSync.app` | `Contents/MacOS/insync-app` + `Info.plist` | Bundle ID `com.ayangweb.insync`，ad-hoc 签名（`codesign --force --sign -`），`codesign --verify` 通过 ✅ |
 | `~/.local/bin/insync-server` | 服务器二进制 | 已 ad-hoc 签名并验证 ✅ |
 
-安装后二进制哈希（`a922a051…` / `14d7de15…`）与 CI 产物不同，原因是 ad-hoc
-签名会重写 Mach-O 的签名段（两个文件都恰好增长 18128 字节）。已用
+安装后二进制哈希与 CI 产物不同，原因是 ad-hoc 签名会重写 Mach-O 的签名段
+（两个文件都恰好增长 18128 字节）。已用
 `otool -s` 逐 section 比对证明安装内容是 CI 产物本身：**app 的 22/22、
 server 的 17/17 个 section 内容逐字节一致**，差异仅在签名元数据；同一比对
 对上一轮 run 的产物给出 11 个 section 不同，说明该检查确实能发现差异。本地
@@ -254,7 +256,11 @@ workspace 成员继承 `[workspace.package].version`。已改为
 
 修复后的最终运行：**run 38108110093（commit `326408e1`）五个 job 全绿** ——
 `assets`、`test-linux`、`build-windows`、`docker-server`、`build-macos` 全部
-`success`。该 run 的产物即 §7 中安装到本机的二进制。
+`success`。§5.1 的两处修复之后：**run 38113466225（commit `3939521b`）同样五个
+job 全绿**，本机安装的二进制即该 run 的产物，并在其上复验了透明背景、启动时面板
+置前、菜单项“打开面板”（已打开时不关闭）、关闭按钮后再打开（新建窗口并置前）与
+桌宠右键两条分支。后续仅有文档提交（`docs/` 不在触发路径内），因此代码状态的验证
+结论仍以 `3939521b` 的这次 run 为准。
 
 ## 8. 未完成与待办（如实标注）
 
