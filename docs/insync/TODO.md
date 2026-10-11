@@ -39,7 +39,7 @@
 ## Phase F — 交付
 
 - [x] F1 Dockerfile + docker-compose.yml + deployment.md（备份/恢复/TLS/健康检查）
-- [x] F2 CI workflow `.github/workflows/insync-verify.yml`（`assets` 素材校验与防漂移 → Linux 共享 crate 测试 → macOS 全 crate clippy/测试 + release 构建 → Windows 全 crate clippy/测试 + release 构建 → Docker 镜像冒烟）。已推送并实际跑通诊断：修复触发器 `crates/insync-*` 单星号不跨 `/` 导致代码改动不触发、Linux 任务误构建 GPUI 导致 fontconfig 缺失、素材漂移字节比对跨平台不稳定、六个 crate 未继承 workspace 版本（违反 `test_product_version_contract`）
+- [x] F2 CI workflow `.github/workflows/insync-verify.yml`（`assets` 素材校验与防漂移 → Linux 共享 crate 测试 → macOS 全 crate clippy/测试 + release 构建 → Windows 全 crate clippy/测试 + release 构建 → Docker 镜像冒烟）。已推送并实际跑通诊断：修复触发器 `crates/insync-*` 单星号不跨 `/` 导致代码改动不触发、Linux 任务误构建 GPUI 导致 fontconfig 缺失、素材漂移字节比对跨平台不稳定、六个 crate 未继承 workspace 版本（违反 `test_product_version_contract`）。三个平台真机测试后另发现并修复两个产品缺陷：Windows 无系统时区库导致时钟/闹钟失败（jiff `tzdb-bundle-platform`）、容器 `/data` 归 root 导致服务端无法建库（镜像内预建并 chown，另装 `curl` 供健康检查）。
 - [x] F3 本地 macOS 构建 + 冒烟（进程稳定 35s、干净退出、RSS 平稳 ~118MB、CPU ~6–8% debug 构建；全部 79 个测试通过；截图因测试显示器输出全黑无法目检，已如实记录。Windows 目标：六 crate `cargo xwin clippy --target x86_64-pc-windows-msvc -D warnings` 全绿，含 gpui-kit/tray-icon/muda/ring 路径）
 - [x] F4 最终交付报告（docs/insync/final-report.md）
 

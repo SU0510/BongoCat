@@ -23,6 +23,18 @@ docker compose up -d --build
 数据（`insync.db`、WAL 文件）落在命名卷 `insync-data`，可用
 `docker run --rm -v insync-data:/data alpine tar cz -C /data .` 备份。
 
+容器以 `1000:1000` 运行，镜像内 `/data` 已预先创建并归属该用户（Docker 会把
+镜像中该目录的属主复制进它创建的卷；若 `/data` 归 root，服务端会以
+`open db: unable to open database file` 启动失败）。挂载自己的宿主机目录时
+同样要保证该 UID 可写：
+
+```bash
+mkdir -p /srv/insync-data && sudo chown 1000:1000 /srv/insync-data
+# docker-compose.yml 中改为: - /srv/insync-data:/data
+```
+
+镜像内已安装 `curl`，compose 的健康检查据此探测 `/health`。
+
 ## 3. 反向代理（HTTPS/WSS）
 
 Caddy 示例（自动签发证书）：

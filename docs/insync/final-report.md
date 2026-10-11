@@ -164,6 +164,23 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
    字节比对必然失败。改为解码后按像素比较（`check_pixel_drift.py`），
    并固定 `pillow==12.3.0 numpy==2.5.3`。
 
+CI 补上 Linux/macOS/Windows 三个平台的真机测试后，又暴露出两个**只有真平台
+才会出现**的产品缺陷（此前都只在本机 macOS 验证过）：
+
+5. **Windows 上没有时区数据库**：workspace 关闭了 jiff 默认特性，只启用
+   `tz-system` 与 `tzdb-zoneinfo`，两者都读操作系统的时区库；Windows 没有，
+   于是 `Zoned::now()` / `TimeZone::get("UTC")` 在 Windows 上直接失败——这
+   不只是测试问题，闹钟线程与时钟走的就是这条路径。已启用 jiff 的
+   `tzdb-bundle-platform`（仅在无系统时区库的平台链接内置库，macOS/Linux
+   继续读系统库）。Windows 目标已用 `cargo xwin clippy --target
+   x86_64-pc-windows-msvc -p insync-app --all-targets -- -D warnings` 复核。
+6. **容器数据目录归属错误**：运行阶段以 `USER 1000:1000` 运行且声明
+   `VOLUME /data`，但镜像里没有 `/data`，Docker 创建的卷归 root，服务端以
+   `open db: unable to open database file` 启动失败（CI 冒烟实测到这个错误）。
+   已在镜像内 `mkdir -p /data && chown 1000:1000 /data`，并安装健康检查所需
+   的 `curl`。**注意**：本机没有 Docker daemon，此修复未经本地构建验证，
+   由 CI 的 `docker-server` job（构建镜像 + 启动 + 探测 `/health`）验证。
+
 另外，`tools/tests/test_product_version_contract.py` 捕获到一个此前未被发现的
 契约违反：六个 InSync crate 使用硬编码 `version = "0.1.0"`，而仓库要求所有
 workspace 成员继承 `[workspace.package].version`。已改为
@@ -176,8 +193,10 @@ workspace 成员继承 `[workspace.package].version`。已改为
    Win32 路径的静态验证 + 进程稳定性覆盖）。需要在一台有真实显示器的
    macOS/Windows 上人工核验。
 2. **Windows 实机运行未验证**：Windows 目标的可构建性已通过 `cargo xwin`
-   交叉编译检查（六 crate 全绿，含全部 Windows 依赖路径）；剩余缺口仅是
-   在真实 Win32 环境中运行确认（分层窗口行为、DPI、托盘）。
+   交叉编译检查（六 crate 全绿，含全部 Windows 依赖路径），并在 CI 的
+   Windows runner 上跑通了 lint 与全部单元/集成测试（由此发现并修复了
+   Windows 缺少时区数据库的缺陷）；剩余缺口仅是**在真实 Win32 桌面会话中
+   运行确认**（分层窗口行为、DPI、托盘）。
 3. **OS 原生通知**：当前通知为应用内通知中心 + 声音 + 桌宠动画；未接
    UNUserNotificationCenter / Windows Toast（涉及打包与权限，v2 工作）。
 4. **安装包流水线**：InSync 未接入 `bongocat-packaging`（app/dmg/NSIS）；
