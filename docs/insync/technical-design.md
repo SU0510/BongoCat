@@ -17,11 +17,17 @@ InSync 是面向情侣（尤其异地情侣）的 Windows/macOS 桌面陪伴应�
 | Backend API + Realtime Server | `crates/insync-server` | 认证、配对、消息/留言/戳戳/专注/共享数据、事件日志、WS 推送 |
 | Database | `insync-server`（SQLite WAL） | users、sessions、relations、messages、letters、pokes、focus、todos、notes、anniversaries、events、presence |
 | Notification Service | `insync-app` | 应用内通知中心 + 声音（`bongocat-audio`）、勿扰、节流 |
+| Chime Asset | `insync-app` + `tools/insync-audio` | 程序化生成的 0.9s 双音铃声（WAV），`include_bytes!` 内嵌，首次使用时落到私有数据根 |
 
 复用的 BongoCat 基础设施：`bongocat-storage`（原子私有写）、`bongocat-log`
 （脱敏日志）、`bongocat-audio`（rodio 播放）、`bongocat-platform`（托盘/菜单、
 开机自启、单实例、主题）、`bongocat-i18n`、gpui-kit。不使用：Live2D/Cubism、
 全局输入监听、更新签名通道（见 ADR-0089）。
+
+`bongocat-audio` 的两条契约决定了铃声的接法：播放按路径取已解码的片段
+（`Prepare` → `Play`），因此提醒音在启动时 `Prepare` 一次，否则 `Play` 会以
+`ResourceIo` 静默失败；解码器只认 FLAC 与（本 ADR 为 InSync 新启用的）WAV，
+所以铃声以确定性的纯 stdlib 生成器产出 WAV（`tools/insync-audio/`）。
 
 ## 数据流
 
@@ -45,7 +51,8 @@ InSync 是面向情侣（尤其异地情侣）的 Windows/macOS 桌面陪伴应�
 `<data_dir>/com.ayangweb.insync/{development,production}/`：
 `account.json`、`settings.json`、`window-state.json`、`pet-state.json`、
 `personal/{todos,notes,anniversaries,alarms,focus-history}.json`、
-`sync/{session,outbox,message-cache,shared-cache}.json`、`backups/`、`logs/`。
+`sync/{session,outbox,message-cache,shared-cache}.json`、`assets/alarm.wav`
+（内嵌铃声的落地副本）、`backups/`、`logs/`。
 全部走 schema_version 严格入口 + 原子写 + 损坏备份（`bongocat-storage` 原语）。
 
 ## 错误与恢复要点

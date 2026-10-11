@@ -25,6 +25,7 @@
 **日常功能（C 组）— 已完成**
 
 - 时钟（12/24h、日期星期）、本地闹钟（每日/星期/一次性，jiff 处理 DST，错过 10 分钟内补打一次）、专注计时、个人待办、共享待办、个人便签、共享便签、个人+共享纪念日（倒计时天数）、统一通知中心（同 key 节流 3s、勿扰时段、闹钟穿透勿扰、可选声音、历史 30 条）。
+- 提醒音为程序化生成的 0.9s 双音铃声（C6→G5），`tools/insync-audio/generate_alarm.py` 用纯 stdlib 的确定性浮点实现合成（不调用跨平台可能差 1 ULP 的 libm `sin`/`exp`），因此 CI 可做字节级防漂移；铃声以 `include_bytes!` 内嵌，首次使用时写入私有数据根，并在启动时 `Prepare`（`bongocat-audio` 只播放已解码片段，否则 `Play` 会静默失败）。
 
 **数据与安全（D 组）— 已完成（服务端强制）**
 
@@ -34,8 +35,9 @@
 
 **工程交付（E 组）— 大部分完成（见 §5/§7 的明确缺口）**
 
-- 78 个自动化测试全部通过（见 §4）。
+- 79 个 InSync 自动化测试全部通过（见 §4）。
 - macOS aarch64 实机构建 + 冒烟通过；Windows x86_64 交叉 clippy 检查通过，构建交给 CI。
+- 已推送到 `origin/feat/insync`，`.github/workflows/insync-verify.yml` 实际运行并逐项修好触发与构建问题（见 §7）。
 - Dockerfile + docker-compose + 部署/备份文档完成。
 
 ## 2. 最终技术架构
@@ -56,13 +58,27 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 
 ## 3. BongoCat 中保留、修改和删除的模块
 
-- **保留未动**：全部 bongocat-* crate、Live2D 栈、打包/更新流水线。BongoCat
-  应用本身零改动（`git log -- crates/bongocat-*` 除 audio/storage 无引用变更）。
+- **保留未动**：全部 bongocat-* crate 源码、Live2D 栈、打包/更新流水线。
+  `crates/bongocat-*` 下没有任何源文件在本分支被修改。
+- **有一处共享依赖声明改动（如实记录）**：workspace `Cargo.toml` 的 `rodio`
+  由 `features = ["playback", "flac"]` 变为 `["playback", "flac", "wav"]`，
+  `Cargo.lock` 随之增加 symphonia 的 WAV/PCM 两个 crate。原因是
+  `bongocat-audio` 的解码器原本只认 FLAC，而 InSync 的提醒音需要一个可确定性
+  重建的短音频；BongoCat 自身播放的是同一批 FLAC 文件，行为不变。理由与取舍
+  记在 ADR-0089「Audio reuse and its one enabled codec」。
+  **lock 陷阱（如实记录）**：本仓库的 `Cargo.lock` 刻意把 Windows target 的
+  `windows` 依赖边固定在单一版本（AGENTS.md §6.1）。`cargo update -p <crate>`
+  会连同这些边一起按解析器偏好改回更旧的版本；本次已在提交前把 16 条
+  `windows*` 依赖边恢复为原有版本，并用
+  `cargo tree --locked --target x86_64-pc-windows-msvc -p bongocat-platform`
+  复核（结果仍为单一 `windows v0.62.2`）。最终 `Cargo.lock` 的改动全部是
+  新增行，无删除。
 - **复用**：`bongocat-storage`（原子私有写）、`bongocat-audio`（rodio 播放）、
   `gpui-kit`、`tray-icon/muda` 依赖、JSON store 设计模式（照 bongocat-config
   的 schema 门 + 备份 + 隔离）。
 - **新增**：六个 `insync-*` crate + `tools/insync-sprites/` +
-  `resources/insync/` + `.github/workflows/insync-verify.yml`。
+  `tools/insync-audio/` + `resources/insync/` +
+  `.github/workflows/insync-verify.yml`。
 - **未删除**：无。未删除任何 BongoCat 功能或文件。
 
 ## 4. 实际执行的自动化测试及结果
@@ -71,16 +87,20 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 | --- | --- | --- |
 | insync-core（协议/专注状态机/outbox/去重/缓存） | 28 | ✅ |
 | insync-server 单元（DB 迁移/argon2/token） | 6 | ✅ |
-| insync-server 集成（双用户全流程 + 安全矩阵，共 13 个） | 13 | ✅ |
+| insync-server 集成（双用户全流程 + 安全矩阵） | 13 | ✅ |
 | insync-sprite（库加载/帧计算/优先级/行为） | 13 | ✅ |
 | insync-client（错误映射 1 + 引擎级双端集成 4） | 5 | ✅ |
-| insync-app（store 5 + clock 7 + notify 3） | 13 | ✅（不含 GUI 自动化） |
+| insync-app（store 5 + clock 7 + notify 3 + 铃声解码 1） | 14 | ✅（不含 GUI 自动化） |
+| bongocat-audio（回归：启用 wav feature 后原有测试） | 15（+1 ignored） | ✅ |
 | 素材校验 `validate_sprites.py` | 26 sheet | ✅ |
-| changelog 契约 `test_release_changelog_contract` | 12 | ✅ |
+| 素材校验 `validate_alarm.py`（格式/电平/削波/音高） | 1 WAV | ✅ |
+| BongoCat 工具契约测试 `tools/tests/` | 102 | ✅（含 workspace 版本契约与 workflow 校验） |
 
-命令：`cargo test -p insync-core -p insync-server -p insync-client -p insync-sprite
--p insync-app`。另有 `cargo clippy --all-targets -D warnings` 六 crate 全绿
-（pet-window 另在 `x86_64-pc-windows-msvc` target 上全绿）。
+命令：`cargo test --locked -p insync-core -p insync-server -p insync-client -p insync-sprite
+-p insync-pet-window -p insync-app -p bongocat-audio`（79 + 15 通过）。
+另有 `cargo clippy --locked <六个 insync crate> -p bongocat-audio --all-targets -- -D warnings`
+全绿（pet-window 另在 `x86_64-pc-windows-msvc` target 上全绿），以及
+`cargo fmt --all -- --check` 与 `python3 -m unittest discover -s tools/tests` 102 项全绿。
 
 ## 5. macOS / Windows 真实验证情况
 
@@ -114,13 +134,40 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 | 交付物 | 路径 | 状态 |
 | --- | --- | --- |
 | 桌面应用（macOS debug 冒烟二进制） | `target/debug/insync-app` | 本地构建 ✅ |
+| 桌面应用 + 服务器（macOS aarch64 release） | CI artifact `insync-macos-aarch64` | 由 CI 产出 |
+| 桌面应用 + 服务器（Windows x86_64 release） | CI artifact `insync-windows-x86_64` | 由 CI 产出 |
 | 服务器（本地构建） | `cargo build -p insync-server` → `target/debug/insync-server` | 本地构建 ✅（release 由 CI） |
 | 精灵素材 + manifest | `resources/insync/sprites/`、`resources/insync/icons/tray.png` | 已提交 ✅ |
+| 提醒音 | `resources/insync/sounds/alarm.wav` | 已提交 ✅（生成器 `tools/insync-audio/`） |
 | 预览 GIF / contact-sheet | `target/insync-preview/` | 本地产物（未入库） |
 | 冒烟证据 | `target/insync-preview/smoke-evidence.txt` | 本地产物 |
-| CI 工作流 | `.github/workflows/insync-verify.yml` | 已提交，未触发（未推送） |
+| CI 工作流 | `.github/workflows/insync-verify.yml` | 已提交并推送，`feat/insync` 上实际运行 ✅ |
 | Windows 交叉验证 | `cargo xwin clippy --target x86_64-pc-windows-msvc`（六 crate，`-D warnings`） | 本机通过 ✅ |
 | 部署配置 | `Dockerfile`、`docker-compose.yml`、`docs/insync/deployment.md` | 已提交 ✅ |
+
+### 7.1 CI 实际运行记录（触发问题与修复）
+
+分支推送后 `insync-verify` 一共暴露出四个真实问题，均已修复并留下提交：
+
+1. **触发器 glob 不跨目录**：`paths: crates/insync-*` 的单星号不匹配
+   `crates/insync-sprite/src/library.rs`，只匹配 crate 目录本身，导致此后
+   所有纯代码改动**完全没有触发 CI**（表现为「push 后没有 run」）。改为
+   `crates/insync-*/**`。
+2. **Linux 任务误构建 GPUI**：`yeslogic-fontconfig-sys` 在 ubuntu runner 上
+   找不到系统 fontconfig 而失败。GPUI 需要整套 Linux GUI 开发栈，而 InSync
+   只在 Windows/macOS 发布；Linux 任务改为只跑共享 crate（core/server/
+   client/sprite），`insync-pet-window` 与 `insync-app` 由 macOS/Windows 任务
+   lint + 测试（与 BongoCat `verify.yml` 对自身 GPUI 产品的划线一致）。
+3. **Windows 任务 clippy 步骤级 schema 错误**：`targets:` 写在 step 级而非
+   `with:` 内，使整份 workflow 无效（0 job、run 名回退成文件名）。
+4. **素材防漂移跨平台不稳定**：PNG 的 zlib 输出在 macOS 与 Ubuntu 之间不同，
+   字节比对必然失败。改为解码后按像素比较（`check_pixel_drift.py`），
+   并固定 `pillow==12.3.0 numpy==2.5.3`。
+
+另外，`tools/tests/test_product_version_contract.py` 捕获到一个此前未被发现的
+契约违反：六个 InSync crate 使用硬编码 `version = "0.1.0"`，而仓库要求所有
+workspace 成员继承 `[workspace.package].version`。已改为
+`version.workspace = true` 并同步 `Cargo.lock`（改为 2.2.0）。
 
 ## 8. 未完成与待办（如实标注）
 
@@ -146,13 +193,12 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 
 ## 9. 需要用户亲自完成的最少事项
 
-1. **推送分支并启用 CI**：`git push -u origin feat/insync` 后 GitHub Actions
-   自动运行 `insync-verify`，从 artifacts 下载 macOS/Windows 构建产物并
-   在真实设备上目检（本环境无法完成的两项验证）。
+1. **在真实设备上目检**：分支已推送、CI 已跑通，从 artifacts 下载 macOS
+   （`insync-macos-aarch64`）/ Windows（`insync-windows-x86_64`）产物，在带
+   真实显示器的机器上核验桌宠外观与交互——这是本环境无法完成的验证。
 2. **提供一台公网服务器 + 域名**（可选）：按 `docs/insync/deployment.md`
    执行 `docker compose up -d --build` + 反向代理 TLS；把地址填进两端
    客户端设置。
 3. **决定 InSync 的发布渠道**：是否接入 bongocat-packaging 生成安装包/
    自动更新，或保持 CI 裸二进制分发。
-4. （如需合入 master）基于 `feat/insync` 创建 PR；本分支未推送、未合并，
-   严格遵守了「不主动 push」的约定。
+4. （如需合入 master）基于 `feat/insync` 创建 PR。

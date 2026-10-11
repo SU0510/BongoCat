@@ -25,6 +25,24 @@ infrastructure of the BongoCat refactor intact.
   writer flock) proven by `bongocat-config`.
 - Apache-2.0 licensing for all InSync code.
 
+### Audio reuse and its one enabled codec
+
+`bongocat-audio` is reused as-is except for one feature flag: the workspace pins
+rodio with `default-features = false, features = ["playback", "flac"]`, so the
+decoder accepts only FLAC. BongoCat's motion audio is FLAC and needed nothing
+else; InSync's notification chime is a generated asset
+(`tools/insync-audio/generate_alarm.py`), and WAV from a pure-stdlib generator is
+reproducible byte for byte in a way a FLAC encoder available to CI is not. The
+`wav` feature is therefore added, which pulls in symphonia's WAV and PCM codecs.
+BongoCat's own playback path is unaffected: it feeds the same FLAC files.
+
+Two consequences of that service's contract shape the InSync side. Playback is
+path-based, so the chime is embedded in the binary (`include_bytes!`) and
+materialized into InSync's private data root on first use, rather than read from
+the repository layout. And the backend plays only clips it has already decoded
+(`Prepare`), so the app prepares the chime once at startup — otherwise the
+notification would fail with `ResourceIo` and the alarm would be silent.
+
 ### What InSync does not use
 
 - The Live2D/Cubism stack (`bongocat-live2d*`, `bongocat-model*`, `vendor/`)
