@@ -6,7 +6,10 @@
 
 **桌宠（A 组验收）— 已完成**
 
-- 原创像素人物「Momo」（程序化生成、双配色变体 momo / momo-mint，48×64 逻辑分辨率 4x 输出）。
+- 原创像素人物「Momo」（程序化生成、双配色变体 momo / momo-mint，48×64 逻辑分辨率 4x 输出）；
+  新增第二人物「Nana」（按使用者真实照片 redesign：深棕双麻花辫 + 中分空气刘海 +
+  玫瑰粉无袖上衣 + 斜挎包带，绘制按 `Style` 结构旗标分支）。角色可在设置面板切换，
+  桌宠与面板头像/空态插图同步跟随；旧配置无该字段时默认 Momo 照常启动。
 - 透明置顶无边框窗口（macOS NSPanel / Windows UpdateLayeredWindow），可拖动、位置持久化、50–400% 缩放、多屏坐标钳制、点击穿透开关。
 - 13 个动画：idle / blink / wave / walk / sleep / work / stretch / react / poke_react / message_react / invite_react / celebrate / rest（`tools/insync-sprites/validate_sprites.py` 强制帧数/边距/调色板/循环一致性）。
 - 行为状态机：优先级仲裁（BASE/LIFE/REACTION/INTERACTION）、反应节流、随机生活动作（种子化可测）、点击反应、戳戳反应、消息/留言/邀请/庆祝反应。
@@ -93,15 +96,15 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 | insync-server 集成（双用户全流程 + 安全矩阵） | 13 | ✅ |
 | insync-sprite（库加载/帧计算/优先级/行为） | 13 | ✅ |
 | insync-client（错误映射 1 + 引擎级双端集成 4） | 5 | ✅ |
-| insync-app（store 4 + clock 7 + notify 3 + 铃声解码 1 + hub 5 + palette 3） | 23 | ✅（不含 GUI 自动化） |
+| insync-app（store 6 + clock 7 + notify 3 + 铃声解码 1 + hub 5 + palette 3 + 素材内嵌 2） | 27 | ✅（不含 GUI 自动化） |
 | bongocat-audio（回归：启用 wav feature 后原有测试） | 15（+1 ignored） | ✅ |
 | 素材校验 `validate_sprites.py` | 26 sheet | ✅ |
 | 素材校验 `validate_alarm.py`（格式/电平/削波/音高） | 1 WAV | ✅ |
 | BongoCat 工具契约测试 `tools/tests/` | 122 | ✅（含 product version 契约、InSync 版本/发布契约 `test_insync_release.py` 20 项与 workflow 校验；其中 20 项由 `insync-verify` 的 `contracts` 任务在每次推送重跑，全套在 PR 触发的 `verify.yml` 上跑） |
 
 命令：`cargo test --locked -p insync-core -p insync-server -p insync-client -p insync-sprite
--p insync-pet-window -p insync-app -p bongocat-audio`。六个 InSync crate 现在合计 **88**
-个测试（面板重做新增 hub 5 + palette 3 + store 1，并把 `insync-app` 从 14 提到 23），
+-p insync-pet-window -p insync-app -p bongocat-audio`。六个 InSync crate 现在合计 **92**
+个测试（角色工作把 store 从 4 提到 6、新增素材内嵌 2 个，`insync-app` 从 23 提到 27），
 在 CI 的 macOS 与 Windows 任务上分别真机跑通；`bongocat-audio` 另有 15（+1 ignored）
 在 Linux 任务上跑通。
 另有 `cargo clippy --locked <六个 insync crate> -p bongocat-audio --all-targets -- -D warnings`

@@ -5,7 +5,7 @@
 ```
 resources/insync/sprites/
   manifest.json            # 动画清单（由生成器输出，运行时唯一事实来源）
-  momo/<animation>.png     # 每个动作一张横向精灵图（等宽帧）
+  <character>/<animation>.png   # 每个角色每个动作一张横向精灵图（等宽帧）
 tools/insync-sprites/
   generate_sprites.py      # 程序化像素素材生成器（PIL，可重复运行）
   validate_sprites.py      # 尺寸/帧数/透明通道/调色板一致性校验
@@ -16,20 +16,48 @@ tools/insync-sprites/
 
 **Momo**：Q 版 2.5 头身、温暖治愈系日系像素风。桃粉色波波头 + 奶油色连帽衫 +
 深暖灰描边；两套调色板变体（`momo` 桃粉 / `momo-mint` 薄荷），形状完全一致，
-便于两位伴侣区分。逻辑分辨率 48×64，输出 4 倍放大（192×256/帧），
+便于两位伴侣区分。
+
+**Nana**：同一体型与绘制管线，按真实人物特征 redesign：深棕色双麻花辫（含
+中分空气刘海、发绳与行走摆动）+ 玫瑰粉无袖上衣 + 斜挎包带，无呆毛。形状与
+Momo 明显不同（辫子在裸臂后层、无抽绳与口袋、领口为弧形），因此不适合用
+调色板变体表达。
+
+**结构旗标**：绘制函数按 `Style` 旗标（`braids` / `center_part` /
+`sleeveless` / `strap` / `ahoge`）分支，而不是按角色名分支——新增调色板
+变体零代码，新增结构特征时在 `STYLES` 里声明旗标即可（`tools/insync-
+sprites/generate_sprites.py`）。共享的绘制规则：辫子画在皮肤后层（裸臂与手
+覆盖辫子，不穿模）、行走循环 ±1px 摆动、发绳用角色 accent 色。
+
+逻辑分辨率 48×64，输出 4 倍放大（192×256/帧），
 nearest-neighbor 保证像素锐利。
 
-调色板（全局固定，跨帧一致）：
+调色板按角色声明（生成器 `PALETTES`，全局固定，跨帧一致）。
+
+**Momo**（`momo` 与 `momo-mint` 共享形状，仅换色）：
 
 | 用途 | 色值 |
 | --- | --- |
-| 描边 | `#4a3b forty`→ `#4a3b3b` |
+| 描边 | `#4a3b3b` |
 | 皮肤 | `#f7d7b8` / 阴影 `#eab890` |
 | 头发主色 | `#f2a6b3` / 阴影 `#d97f92` / 高光 `#ffd3dc` |
 | 连帽衫 | `#fff4e3` / 阴影 `#e8d5b8` / 抽绳 `#f2a6b3` |
 | 裤子 | `#7fb5a3` / 阴影 `#5f9483` |
 | 腮红 | `#f6b1b1` |
 | 眼睛 | `#4a3b3b` / 高光白 `#ffffff` |
+
+**Nana**（另有 `strap` 斜挎包带 `#4a4038`、`shoe` `#e8e2d6`）：
+
+| 用途 | 色值 |
+| --- | --- |
+| 描边 | `#3d2c29` |
+| 皮肤 | `#f7d7b8` / 阴影 `#eab890` |
+| 头发主色 | `#6b5147` / 阴影 `#453029` / 高光 `#8d6e58` |
+| 上衣 | `#e3a6ab` / 阴影 `#c98b93` / 包底 `#b57b85` |
+| 裤子 | `#6f89b8` / 阴影 `#54709f` |
+| 发绳/accent | `#e0636f` |
+| 腮红 | `#f6b1b1` |
+| 眼睛 | `#3d2c29` / 高光白 `#ffffff` |
 
 ## 动画清单（v1，13 个）
 
@@ -67,6 +95,23 @@ nearest-neighbor 保证像素锐利。
 }
 ```
 
+## 新增角色流程
+
+1. 在 `generate_sprites.py` 的 `PALETTES` 声明调色板；形状与现有角色一致时
+   只需调色板（如 `momo-mint`），有结构性差异时在 `STYLES` 声明 `Style` 旗标
+   （如 nana 的 `braids` / `strap`），绘制函数按旗标分支。
+2. 运行 `python3 tools/insync-sprites/generate_sprites.py` 重新生成并核对
+   `manifest.json` 新增该角色；`validate_sprites.py` 对 manifest 里的每个角色
+   自动执行同样的校验。
+3. `tools/insync-ui/generate_ui_images.py` 的 `CHARACTERS` 加入该角色，重新
+   生成 `{character}_portrait.png` / `{character}_wave.png`。
+4. `insync-app`：`store::CHARACTERS` 加入角色 id、`assets.rs` 的 `sprite_library`
+   用 `sheets!` 内嵌该角色的 13 张表（`from_embedded` 要求 manifest 中每个角色
+   的表都在，缺一张即 panic）、`i18n.rs` 加 `character.<id>` 文案。旧数据兼容
+   由 `#[serde(default)]` + validate 回退首个角色保证，并补一条「旧文件无该
+   字段 → 正常启动」回归测试。
+5. 面板头像与空态插图按 `insync/{character}_portrait.png` 跟随当前角色。
+
 ## 新增动作流程
 
 1. 在 `generate_sprites.py` 的 `ANIMATIONS` 中定义帧参数（部位偏移/表情/道具）。
@@ -85,16 +130,16 @@ nearest-neighbor 保证像素锐利。
 
 ```
 resources/insync/ui/
-  momo_portrait.png        # 从 idle 帧裁出的头像（红色心形装饰，页头用）
-  momo_wave.png            # wave 动作第 1 帧的整幅（空态插图用）
+  <character>_portrait.png # 从 idle 帧裁出的头像（红色心形装饰，页头用）
+  <character>_wave.png     # wave 动作第 1 帧的整幅（空态插图用）
 tools/insync-ui/
   generate_ui_images.py    # 由 sprites 生成上述两张图（PIL，可重复运行）
   verify_panel.py          # 截取真实面板窗口并做像素/几何测量（人工目检的替代）
 ```
 
-`momo_portrait.png` 由脚本按固定裁切框 `(44,12,148,120)` 取出并做 alpha 硬化，
-因此精灵图重绘后重新运行生成器即可同步；`insync-app` 以 `include_bytes!` 内嵌
-这两张图（`InSyncAssets`），运行时不需要文件路径。
+每个可用角色各生成一对裁切图；`insync-app` 以 `include_bytes!` 内嵌全部角色的
+两张图（`InSyncAssets`），运行时按 `insync/{character}_portrait.png` 取当前
+角色对应的图，因此精灵图重绘后重新运行生成器即可同步，运行时不需要文件路径。
 
 与精灵图同理，这两张图也必须与生成器输出一致：CI 的 `assets` 任务运行
 `generate_ui_images.py --check`（内存重新生成后比对**解码像素**，不是字节——zlib

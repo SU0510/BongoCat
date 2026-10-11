@@ -7,6 +7,14 @@
 - [x] A1 源码审计 + 架构决策（ADR-0089/0090/0091、docs/insync/technical-design.md、protocol.md、sprite-assets.md）
 - [x] A2 素材生成管线：`tools/insync-sprites/{generate,validate,preview}_sprites.py`，13 个动画全绿（`validate_sprites.py` OK；CI 任务 `assets` 防漂移）；提醒音 `tools/insync-audio/{generate,validate}_alarm.py`（纯 stdlib 确定性合成，`generate_alarm.py --check` 字节比对 + `validate_alarm.py` 校验格式/电平/音高，由同一 CI 任务执行）
 - [x] A3 `insync-sprite`：manifest 加载、帧计算、优先级状态机、随机行为（13 个单元测试通过）
+- [x] A4 新角色「Nana」（按使用者真实照片 redesign，发型优先：深棕双麻花辫 + 中分
+  空气刘海，保留玫瑰粉无袖上衣与斜挎包带特征）：生成器加 `Style` 结构旗标
+  （`braids` / `center_part` / `sleeveless` / `strap` / `ahoge`），绘制函数按旗标
+  分支而非角色名分支——momo/mint 输出经 4x 最近邻像素比对确认零漂移。辫子画在
+  皮肤后层（裸臂覆盖、不穿模）、行走循环 ±1px 摆动、发绳用 accent 色。验证：
+  `validate_sprites.py` 对 manifest 三个角色全绿；面板裁切图
+  `{momo,nana}_{portrait,wave}.png` 由 `generate_ui_images.py --check` 覆盖漂移。
+  审美本身仍待使用者人眼确认（final-report §8.1）。
 
 ## Phase B — 桌宠窗口
 
@@ -51,6 +59,16 @@
   上次分区」路径），断言选中磁贴正确、`stray_edge=0`（无裁切）；另测 400pt 与
   最小 360pt 宽、浅/深两套调色板（正文对比度 6.9–8.5:1）。`insync-app` 23 个
   测试通过、`cargo clippy -D warnings` 干净。
+- [x] E11 角色选择：`Settings.character`（`#[serde(default)]` 默认 `momo`，
+  validate 未知值回退首个角色，旧文件无该字段照常读取）→ `app::CURRENT_CHARACTER`
+  → tick 时 `AnimationPlayer::set_sprites` 热切换（played_character 记账，每档只切
+  一次）；面板头像/空态插图按当前角色取 `insync/{character}_*.png`；设置面板偏好
+  卡新增角色行（两个按钮，选中态用 `Selectable`），文案双语（`character.momo` /
+  `character.nana`）。验证：`insync-app` 27 个测试通过（新增旧数据回归
+  `settings_without_a_character_still_load`、未知角色回退
+  `an_unknown_character_falls_back_to_the_first`、三角色全内嵌
+  `every_character_is_fully_embedded`、面板图内嵌 `every_panel_image_is_embedded`）；
+  实机切换动画与头像待使用者确认。
 
 ## Phase F — 交付
 

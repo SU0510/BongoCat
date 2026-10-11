@@ -22,6 +22,7 @@ use gpui_kit::component::progress::ProgressCircle;
 use gpui_kit::component::switch::Switch;
 use gpui_kit::component::{ActiveTheme, Icon, Root, Sizable, Size};
 use gpui_kit::prelude::FluentBuilder;
+use gpui_kit::base::Selectable;
 use gpui_kit::{
     AnyElement, App, AppContext, Context, Entity, Subscription, TitlebarOptions, Window,
     WindowBounds, WindowHandle, WindowOptions, div, prelude::*, px, size,
@@ -35,12 +36,17 @@ use std::sync::Arc;
 
 /// The mascot portrait the panel's header and empty states show. Cut from the
 /// character sheet by `tools/insync-ui/generate_ui_images.py` and served by
-/// `crate::assets::InSyncAssets`.
-const PORTRAIT: &str = "insync/momo_portrait.png";
+/// `crate::assets::InSyncAssets`; the character follows the settings, so the
+/// asset path is built per read.
+fn portrait_path() -> String {
+    format!("insync/{}_portrait.png", current_character())
+}
 
 /// The waving pose, used where an empty panel needs a friendlier face than a
 /// 48px avatar.
-const WAVE: &str = "insync/momo_wave.png";
+fn wave_path() -> String {
+    format!("insync/{}_wave.png", current_character())
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HubTab {
@@ -149,6 +155,16 @@ fn now_ms() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
+}
+
+/// The mascot the settings currently select. Free functions because the
+/// portrait is drawn from several places (header, empty states, account card)
+/// that do not all have a view handy.
+fn current_character() -> String {
+    crate::app::CURRENT_CHARACTER
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
 }
 
 /// Wall-clock label for a stored timestamp, in the machine's own zone.
@@ -712,6 +728,26 @@ impl HubView {
         cx.notify();
     }
 
+    /// Switches the mascot the pet and panel draw.
+    ///
+    /// The embedded sprite library carries every character, so only the name
+    /// moves: the setting is saved, the mirror the renderers read is updated,
+    /// and the next tick swaps the player's sprite set (its `set_sprites`
+    /// restarts the base loop, so no half-old frame lingers).
+    fn set_character(&mut self, character: &str, cx: &mut Context<Self>) {
+        if !crate::store::CHARACTERS.contains(&character) {
+            return;
+        }
+        let mut settings = self.core.settings_snapshot();
+        if settings.character == character {
+            return;
+        }
+        settings.character = character.to_string();
+        self.core.save_settings(settings);
+        crate::app::select_character(character);
+        cx.notify();
+    }
+
     /// Re-labels the input placeholders after a language switch.
     ///
     /// The placeholders are state on the input, not text drawn from the view's
@@ -916,12 +952,13 @@ impl HubView {
     /// mascot itself rather than an icon.
     fn mascot_state(&self, title: &str, hint: &str, cx: &Context<Self>) -> AnyElement {
         let theme = cx.theme();
+        let wave = wave_path();
         Empty::new()
             .header(
                 EmptyHeader::new()
                     .media(
                         EmptyMedia::new().child(
-                            gpui_kit::img(WAVE)
+                            gpui_kit::img(wave)
                                 .h(px(120.))
                                 .w(px(62.))
                                 .object_fit(gpui_kit::ObjectFit::Contain),
@@ -996,6 +1033,7 @@ impl HubView {
         } else {
             theme.colors.muted_foreground
         };
+        let portrait = portrait_path();
 
         gpui_kit::base::h_flex()
             .w_full()
@@ -1006,7 +1044,7 @@ impl HubView {
             .bg(theme.colors.muted)
             .border_b_1()
             .border_color(theme.colors.border)
-            .child(Avatar::new().src(PORTRAIT).with_size(Size::Size(px(40.))))
+            .child(Avatar::new().src(portrait).with_size(Size::Size(px(40.))))
             .child(
                 v_flex()
                     .flex_1()
@@ -2391,7 +2429,7 @@ impl HubView {
                     Avatar::new()
                         .name(who.clone())
                         .with_size(Size::Small)
-                        .when(signed_in, |avatar| avatar.src(PORTRAIT)),
+                        .when(signed_in, |avatar| avatar.src(portrait_path())),
                 )
                 .child(
                     v_flex()
@@ -2570,11 +2608,51 @@ impl HubView {
                 .child(self.t("settings.no_partner").to_string()),
         });
 
-        // Preferences: language, plus the one promise about personal data.
+        // Preferences: character, language, plus the one promise about
+        // personal data.
+        let current = current_character();
+        let mut character_row = gpui_kit::base::h_flex().w_full().items_center().gap_2();
+        for (index, name) in crate::store::CHARACTERS.iter().enumerate() {
+            let name = *name;
+            let selected = current == name;
+            character_row = character_row.child(
+                Button::new(SharedString::from(format!("character-{index}")))
+                    .label(self.t(&format!("character.{name}")))
+                    .icon(IconName::User)
+                    .when(selected, |button| button.selected(true))
+                    .when(!selected, |button| button.outline())
+                    .on_click({
+                        let view = view.clone();
+                        move |_, _, cx| {
+                            let _ = view.update(cx, |v, cx| v.set_character(name, cx));
+                        }
+                    }),
+            );
+        }
         let preferences = self
             .card(cx)
             .gap_2()
-            .child(self.section(IconName::Settings2, self.t("settings.language"), cx))
+            .child(self.section(IconName::Settings2, self.t("settings.preferences"), cx))
+            .child(
+                gpui_kit::base::h_flex()
+                    .w_full()
+                    .items_start()
+                    .gap_1p5()
+                    .child(
+                        Icon::new(IconName::User)
+                            .with_size(Size::Small)
+                            .text_color(theme.colors.muted_foreground),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .text_size(theme.typography_tokens().xs.size)
+                            .text_color(theme.colors.muted_foreground)
+                            .child(self.t("settings.character").to_string()),
+                    ),
+            )
+            .child(character_row)
             .child(
                 gpui_kit::base::h_flex()
                     .w_full()

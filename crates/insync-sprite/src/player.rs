@@ -67,6 +67,17 @@ impl AnimationPlayer {
         }
     }
 
+    /// Swaps the character at runtime, restarting the base loop.
+    ///
+    /// Used by the character setting: the sheets are decoded per character, so
+    /// the whole set is replaced and playback restarts from idle rather than
+    /// mixing one character's frame index into another's clip.
+    pub fn set_sprites(&mut self, sprites: Arc<CharacterSprites>, now_ms: u64) {
+        self.sprites = sprites;
+        self.active = None;
+        self.play_base(now_ms);
+    }
+
     /// The loop animation the player returns to once one-shots finish.
     pub fn base_animation(&self) -> &str {
         &self.base

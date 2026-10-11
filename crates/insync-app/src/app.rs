@@ -41,6 +41,19 @@ pub struct AppCore {
     pub language: Arc<Mutex<String>>,
 }
 
+/// The mascot the settings currently select, mirrored here because the pet
+/// player, the panel header and the empty states all draw it, and not all of
+/// them have an `AppCore` handy. Written at startup and by the character
+/// setting; the embedded sprite library carries every character, so readers
+/// just need the name.
+pub static CURRENT_CHARACTER: Mutex<String> = Mutex::new(String::new());
+
+pub fn select_character(name: &str) {
+    *CURRENT_CHARACTER
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = name.to_string();
+}
+
 impl AppCore {
     pub fn start() -> Result<Self, String> {
         let root = crate::data_root();
@@ -49,6 +62,7 @@ impl AppCore {
         settings.validate();
         let _ = settings_store.save(&settings);
         let language = settings.language.clone();
+        select_character(&settings.character);
         let settings = Arc::new(Mutex::new(settings));
 
         let account_store: JsonStore<Account> = JsonStore::new(&root);
@@ -271,6 +285,9 @@ pub struct Coordinator {
     pub pet_visible: AtomicBool,
     pub refresh_counter: std::cell::Cell<u8>,
     pub toggle_hub_requested: AtomicBool,
+    /// The mascot the player's current sprite set was built for, so the tick
+    /// swaps it exactly once per character change instead of every frame.
+    pub played_character: std::cell::RefCell<String>,
 }
 
 impl gpui_kit::Global for Coordinator {}
@@ -533,6 +550,22 @@ pub fn tick_app(cx: &mut gpui_kit::App) {
 
     // 4. animation: random life actions + one-shot completion
     if let Some(coordinator) = cx.try_global::<Coordinator>() {
+        // the character setting moved: swap the player's sprite set, which
+        // restarts the base loop so no half-old frame lingers
+        let character = crate::app::CURRENT_CHARACTER
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone();
+        if *coordinator.played_character.borrow() != character {
+            let sprites = crate::assets::sprite_library();
+            if let Some(owned) = sprites.character(&character).cloned() {
+                coordinator
+                    .player
+                    .borrow_mut()
+                    .set_sprites(std::sync::Arc::new(owned), now_ms as u64);
+                *coordinator.played_character.borrow_mut() = character;
+            }
+        }
         let _ = coordinator
             .behavior
             .borrow_mut()

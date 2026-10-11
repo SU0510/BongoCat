@@ -64,9 +64,10 @@ fn main() {
 
             let sprites = assets::sprite_library();
             let character = sprites
-                .character("momo")
+                .character(&core.settings_snapshot().character)
                 .cloned()
-                .expect("embedded momo sprites");
+                .or_else(|| sprites.character("momo").cloned())
+                .expect("embedded character sprites");
             let player = insync_sprite::AnimationPlayer::new(std::sync::Arc::new(character));
             let behavior = insync_sprite::PetBehavior::new(20261011);
 
@@ -81,6 +82,7 @@ fn main() {
                 pet_visible: std::sync::atomic::AtomicBool::new(true),
                 refresh_counter: std::cell::Cell::new(0),
                 toggle_hub_requested: std::sync::atomic::AtomicBool::new(false),
+                played_character: std::cell::RefCell::new(core.settings_snapshot().character),
             });
 
             if let Some(tray) = tray {

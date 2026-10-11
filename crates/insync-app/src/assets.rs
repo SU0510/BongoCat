@@ -24,6 +24,10 @@ fn ui_image(path: &str) -> Option<&'static [u8]> {
             include_bytes!("../../../resources/insync/ui/momo_portrait.png")
         }
         "insync/momo_wave.png" => include_bytes!("../../../resources/insync/ui/momo_wave.png"),
+        "insync/nana_portrait.png" => {
+            include_bytes!("../../../resources/insync/ui/nana_portrait.png")
+        }
+        "insync/nana_wave.png" => include_bytes!("../../../resources/insync/ui/nana_wave.png"),
         _ => return None,
     })
 }
@@ -66,117 +70,44 @@ pub fn alarm_sound_path() -> Option<PathBuf> {
     Some(path)
 }
 
-/// The momo character's 13 animation sheets + manifest, compiled in.
+/// Every character's 13 animation sheets + manifest, compiled in.
 pub fn sprite_library() -> &'static SpriteLibrary {
     static LIBRARY: OnceLock<SpriteLibrary> = OnceLock::new();
     LIBRARY.get_or_init(|| {
         let manifest = include_str!("../../../resources/insync/sprites/manifest.json");
-        let sheets: Vec<(&str, &[u8])> = vec![
-            (
-                "momo/idle.png",
-                include_bytes!("../../../resources/insync/sprites/momo/idle.png"),
-            ),
-            (
-                "momo/blink.png",
-                include_bytes!("../../../resources/insync/sprites/momo/blink.png"),
-            ),
-            (
-                "momo/wave.png",
-                include_bytes!("../../../resources/insync/sprites/momo/wave.png"),
-            ),
-            (
-                "momo/walk.png",
-                include_bytes!("../../../resources/insync/sprites/momo/walk.png"),
-            ),
-            (
-                "momo/sleep.png",
-                include_bytes!("../../../resources/insync/sprites/momo/sleep.png"),
-            ),
-            (
-                "momo/work.png",
-                include_bytes!("../../../resources/insync/sprites/momo/work.png"),
-            ),
-            (
-                "momo/stretch.png",
-                include_bytes!("../../../resources/insync/sprites/momo/stretch.png"),
-            ),
-            (
-                "momo/react.png",
-                include_bytes!("../../../resources/insync/sprites/momo/react.png"),
-            ),
-            (
-                "momo/poke_react.png",
-                include_bytes!("../../../resources/insync/sprites/momo/poke_react.png"),
-            ),
-            (
-                "momo/message_react.png",
-                include_bytes!("../../../resources/insync/sprites/momo/message_react.png"),
-            ),
-            (
-                "momo/invite_react.png",
-                include_bytes!("../../../resources/insync/sprites/momo/invite_react.png"),
-            ),
-            (
-                "momo/celebrate.png",
-                include_bytes!("../../../resources/insync/sprites/momo/celebrate.png"),
-            ),
-            (
-                "momo/rest.png",
-                include_bytes!("../../../resources/insync/sprites/momo/rest.png"),
-            ),
-            (
-                "momo-mint/idle.png",
-                include_bytes!("../../../resources/insync/sprites/momo-mint/idle.png"),
-            ),
-            (
-                "momo-mint/blink.png",
-                include_bytes!("../../../resources/insync/sprites/momo-mint/blink.png"),
-            ),
-            (
-                "momo-mint/wave.png",
-                include_bytes!("../../../resources/insync/sprites/momo-mint/wave.png"),
-            ),
-            (
-                "momo-mint/walk.png",
-                include_bytes!("../../../resources/insync/sprites/momo-mint/walk.png"),
-            ),
-            (
-                "momo-mint/sleep.png",
-                include_bytes!("../../../resources/insync/sprites/momo-mint/sleep.png"),
-            ),
-            (
-                "momo-mint/work.png",
-                include_bytes!("../../../resources/insync/sprites/momo-mint/work.png"),
-            ),
-            (
-                "momo-mint/stretch.png",
-                include_bytes!("../../../resources/insync/sprites/momo-mint/stretch.png"),
-            ),
-            (
-                "momo-mint/react.png",
-                include_bytes!("../../../resources/insync/sprites/momo-mint/react.png"),
-            ),
-            (
-                "momo-mint/poke_react.png",
-                include_bytes!("../../../resources/insync/sprites/momo-mint/poke_react.png"),
-            ),
-            (
-                "momo-mint/message_react.png",
-                include_bytes!("../../../resources/insync/sprites/momo-mint/message_react.png"),
-            ),
-            (
-                "momo-mint/invite_react.png",
-                include_bytes!("../../../resources/insync/sprites/momo-mint/invite_react.png"),
-            ),
-            (
-                "momo-mint/celebrate.png",
-                include_bytes!("../../../resources/insync/sprites/momo-mint/celebrate.png"),
-            ),
-            (
-                "momo-mint/rest.png",
-                include_bytes!("../../../resources/insync/sprites/momo-mint/rest.png"),
-            ),
-        ];
+        macro_rules! sheets {
+            ($character:literal, $( $animation:literal ),+ $(,)?) => {
+                Vec::<(&'static str, &'static [u8])>::from([
+                    $(
+                        (
+                            concat!($character, "/", $animation, ".png"),
+                            include_bytes!(concat!(
+                                "../../../resources/insync/sprites/",
+                                $character,
+                                "/",
+                                $animation,
+                                ".png"
+                            )) as &'static [u8],
+                        ),
+                    )+
+                ])
+            };
+        }
+        let mut sheets = sheets!(
+            "momo",
+            "idle", "blink", "wave", "walk", "sleep", "work", "stretch", "react",
+            "poke_react", "message_react", "invite_react", "celebrate", "rest"
+        );
+        sheets.extend(sheets!(
+            "momo-mint",
+            "idle", "blink", "wave", "walk", "sleep", "work", "stretch", "react",
+            "poke_react", "message_react", "invite_react", "celebrate", "rest"
+        ));
+        sheets.extend(sheets!(
+            "nana",
+            "idle", "blink", "wave", "walk", "sleep", "work", "stretch", "react",
+            "poke_react", "message_react", "invite_react", "celebrate", "rest"
+        ));
         SpriteLibrary::from_embedded(manifest, &sheets).expect("embedded sprite manifest valid")
     })
 }
@@ -200,5 +131,36 @@ mod tests {
         let peak = samples.iter().fold(0.0_f32, |peak, s| peak.max(s.abs()));
         assert!(peak > 0.5, "chime is too quiet to hear (peak {peak})");
         assert!(peak <= 1.0, "chime clips (peak {peak})");
+    }
+
+    /// Every character the setting can name must be fully embedded: a missing
+    /// sheet would make the pet fall back to idle frames instead of its
+    /// animations, and only a test catches it (the player falls back
+    /// silently by design).
+    #[test]
+    fn every_character_is_fully_embedded() {
+        let library = sprite_library();
+        for character in crate::store::CHARACTERS {
+            let sprites = library
+                .character(character)
+                .unwrap_or_else(|| panic!("{character} is embedded but not in the library"));
+            assert_eq!(sprites.animations.len(), 13, "{character} animations");
+        }
+    }
+
+    /// The panel draws the portrait and the wave pose from these paths, so a
+    /// rename in the generator would leave the panel with an empty avatar and
+    /// only this test would say so.
+    #[test]
+    fn every_panel_image_is_embedded() {
+        for character in crate::store::CHARACTERS {
+            for role in ["portrait", "wave"] {
+                let path = format!("insync/{character}_{role}.png");
+                assert!(
+                    ui_image(&path).is_some(),
+                    "{path} is not embedded; run generate_ui_images.py"
+                );
+            }
+        }
     }
 }

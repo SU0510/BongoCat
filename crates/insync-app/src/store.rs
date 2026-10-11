@@ -172,6 +172,10 @@ pub struct Settings {
     pub clock_show_date: bool,
     #[serde(default)]
     pub partner_timezone: Option<String>,
+    /// Which mascot the pet and panel draw. Absent in settings written before
+    /// there was a choice; the default is the first character.
+    #[serde(default = "default_character")]
+    pub character: String,
 }
 
 fn default_schema() -> u32 {
@@ -191,6 +195,10 @@ fn default_pet_scale() -> u16 {
 }
 fn default_pet_opacity() -> u8 {
     100
+}
+pub const CHARACTERS: [&str; 2] = ["momo", "nana"];
+fn default_character() -> String {
+    "momo".to_string()
 }
 fn default_true() -> bool {
     true
@@ -213,6 +221,7 @@ impl Default for Settings {
             clock_24h: true,
             clock_show_date: true,
             partner_timezone: None,
+            character: default_character(),
         }
     }
 }
@@ -231,6 +240,9 @@ impl Settings {
         }
         if !self.theme.starts_with("system") && self.theme != "light" && self.theme != "dark" {
             self.theme = "system".to_string();
+        }
+        if !CHARACTERS.contains(&self.character.as_str()) {
+            self.character = default_character();
         }
     }
 }
@@ -479,6 +491,37 @@ mod tests {
         assert_eq!(loaded.pet, Some(PetPlacement { x: 640, y: 480 }));
         assert_eq!(loaded.hub_tab, None);
         assert_eq!(loaded.schema_version, 1);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn settings_without_a_character_still_load() {
+        let root = temp_root();
+        let store: JsonStore<Settings> = JsonStore::new(&root);
+        // Exactly what an older build wrote: no `character` field.
+        std::fs::write(
+            store.path(),
+            r#"{"schema_version": 1, "language": "zh-CN", "theme": "system"}"#,
+        )
+        .unwrap();
+        let loaded: Settings = store.load();
+        assert_eq!(loaded.character, "momo", "the first character is the default");
+        assert_eq!(loaded.schema_version, 1);
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn an_unknown_character_falls_back_to_the_first() {
+        let root = temp_root();
+        let store: JsonStore<Settings> = JsonStore::new(&root);
+        std::fs::write(
+            store.path(),
+            r#"{"schema_version": 1, "character": "deleted-name"}"#,
+        )
+        .unwrap();
+        let mut loaded: Settings = store.load();
+        loaded.validate();
+        assert_eq!(loaded.character, "momo");
         let _ = std::fs::remove_dir_all(&root);
     }
 

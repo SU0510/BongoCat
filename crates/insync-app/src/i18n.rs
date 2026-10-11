@@ -313,11 +313,11 @@ pub fn text(language: &str, key: &str) -> &'static str {
                 "Unbind"
             }
         }
-        "settings.language" => {
+        "settings.preferences" => {
             if zh {
-                "语言"
+                "偏好设置"
             } else {
-                "Language"
+                "Preferences"
             }
         }
         "settings.theme" => {
@@ -332,6 +332,27 @@ pub fn text(language: &str, key: &str) -> &'static str {
                 "伴侣"
             } else {
                 "Partner"
+            }
+        }
+        "settings.character" => {
+            if zh {
+                "桌宠角色"
+            } else {
+                "Pet character"
+            }
+        }
+        "character.momo" => {
+            if zh {
+                "Momo（粉）"
+            } else {
+                "Momo (pink)"
+            }
+        }
+        "character.nana" => {
+            if zh {
+                "Nana（麻花辫）"
+            } else {
+                "Nana (braids)"
             }
         }
         "settings.no_partner" => {
