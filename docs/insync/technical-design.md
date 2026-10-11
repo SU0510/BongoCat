@@ -46,6 +46,20 @@ InSync 是面向情侣（尤其异地情侣）的 Windows/macOS 桌面陪伴应�
   `started_at/end_at` 计算，重连后以服务端状态收敛。
 - 个人数据（个人待办、个人便签、私人闹钟）只存在本地，永不共享。
 
+## 窗口可见性契约
+
+两条只有真实桌面才能暴露的约束，实现时不得省略：
+
+- **桌宠窗口透明**：不仅要声明窗口不透明性为假，还必须把窗口背景色设为透明。
+  macOS 上 `setOpaque(false)` 只表示「本窗口不是不透明」，AppKit 仍会用
+  `backgroundColor`（默认 `windowBackgroundColor`）填满整个 frame，桌宠会站在一块
+  实色矩形上；Windows 侧以 `UpdateLayeredWindow` + 逐像素 alpha 呈现。
+- **显示面板 = 打开 + 提升**：InSync 是 accessory（无 Dock 图标）应用，自身从不成为
+  活跃应用，而**未激活应用的窗口会被排到所有其它应用窗口之后**；桌宠又是浮动层级
+  面板，始终盖在普通窗口之上——只创建窗口而不提升，用户看到的就是「只有桌宠，菜单里
+  的打开面板毫无反应」。因此显示面板必须同时激活应用并把窗口提到最前；菜单项语义为
+  「打开」（永不关闭），桌宠右键为「已在最前则关闭，否则提升」。
+
 ## 本地存储根
 
 `<data_dir>/com.ayangweb.insync/{development,production}/`：
