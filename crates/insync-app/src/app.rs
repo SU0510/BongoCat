@@ -62,6 +62,17 @@ impl AppCore {
         let audio = bongocat_audio::MotionAudioService::start(8)
             .map(|service| service.client())
             .unwrap_or_else(|_| bongocat_audio::MotionAudioClient::unavailable());
+        // The backend plays only clips it has already decoded, so the chime has
+        // to be prepared before the first notification can sound it. Nothing in
+        // this app publishes `ActivatePrepared`, so one prepare stays valid.
+        if let Some(path) = crate::assets::alarm_sound_path() {
+            let _ = audio.try_publish_with_sequence(|sequence| {
+                bongocat_audio::MotionAudioCommand::Prepare {
+                    sequence,
+                    paths: vec![path],
+                }
+            });
+        }
         let notifications = Arc::new(NotificationCenter::new(audio));
 
         // alarm scheduler thread

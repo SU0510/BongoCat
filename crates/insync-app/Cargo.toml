@@ -39,6 +39,10 @@ production = []
 
 [dev-dependencies]
 tempfile = { workspace = true }
+# The alarm chime is verified with the decoder `bongocat-audio` itself uses,
+# so an asset the shipped stack cannot decode fails here instead of silently
+# on the notification path.
+rodio = { workspace = true }
 
 [lints]
 workspace = true
