@@ -83,24 +83,26 @@ PALETTES = {
     },
     # The second character: dark warm-brown twin braids with wispy center-parted
     # bangs, a dusty-pink sleeveless top, a black crossbody strap and jeans —
-    # read off the reference photo. Same silhouette as momo; the style flags
-    # below drive the structural differences.
+    # read off the reference photo, then brightened: the first pass read too
+    # dark/yellow (near-black outline over a yellow skin), so the skin is a
+    # warm ivory, the outline a soft warm brown and the top a rosier pink.
+    # Same silhouette as momo; the style flags below drive the differences.
     "nana": {
-        "outline": "#3d2c29",
-        "skin": "#f7d7b8",
-        "skin_shadow": "#eab890",
-        "hair": "#6b5147",
-        "hair_shadow": "#453029",
-        "hair_light": "#8d6e58",
-        "hoodie": "#e3a6ab",
-        "hoodie_shadow": "#c98b93",
-        "hoodie_deep": "#b57b85",
-        "accent": "#e0636f",
+        "outline": "#6b4f4a",
+        "skin": "#ffe3c9",
+        "skin_shadow": "#f3c7a1",
+        "hair": "#7a5c50",
+        "hair_shadow": "#523a34",
+        "hair_light": "#a07d68",
+        "hoodie": "#f2b7bd",
+        "hoodie_shadow": "#dba0a8",
+        "hoodie_deep": "#c48892",
+        "accent": "#ef7280",
         "pants": "#6f89b8",
         "pants_shadow": "#54709f",
         "shoe": "#e8e2d6",
-        "blush": "#f6b1b1",
-        "eye": "#3d2c29",
+        "blush": "#f79fa4",
+        "eye": "#5d443f",
         "white": "#ffffff",
         "zzz": "#9db8d9",
         "star": "#ffd98a",
@@ -124,17 +126,21 @@ class Style:
     on the character name, so a palette variant of nana needs no code.
     """
 
-    braids: bool = False  # twin braids hanging over the shoulders
+    braids: bool = False  # twin braids draping over the shoulders, in front
     center_part: bool = False  # wispy bangs with a gap at the center
     sleeveless: bool = False  # bare arms, no drawstrings or pocket
     strap: bool = False  # black crossbody strap over the top
+    soft_face: bool = False  # melon-seed taper instead of the round bob jaw
     ahoge: bool = True  # the little curl on top
 
 
 STYLES = {
     "momo": Style(),
     "momo-mint": Style(),
-    "nana": Style(braids=True, center_part=True, sleeveless=True, strap=True, ahoge=False),
+    "nana": Style(
+        braids=True, center_part=True, sleeveless=True, strap=True,
+        soft_face=True, ahoge=False,
+    ),
 }
 
 # ---------------------------------------------------------------------------
@@ -247,18 +253,44 @@ def draw_hair_back(g: Grid, p: Pose) -> None:
 
 def draw_head(g: Grid, p: Pose, style: Style) -> None:
     dy, dx = p.bob + p.jump, p.lean
-    # skull: x14..33, y8..26
-    for y in range(9 + dy, 26 + dy):
-        g.hline(14 + dx, 33 + dx, y, "skin")
-    g.hline(16 + dx, 31 + dx, 7 + dy, "skin")
-    g.hline(15 + dx, 32 + dx, 8 + dy, "skin")
-    g.hline(15 + dx, 32 + dx, 26 + dy, "skin_shadow")
-    # jaw outline
-    g.hline(17 + dx, 30 + dx, 27 + dy, "outline")
-    g.hline(16 + dx, 16 + dx, 26 + dy, "outline")
-    g.hline(31 + dx, 31 + dx, 26 + dy, "outline")
+    if style.soft_face:
+        # melon-seed face: full width through the eyes, then a gentle
+        # two-step taper to a soft rounded chin — no hard jaw corners
+        for y in range(9 + dy, 18 + dy):
+            g.hline(14 + dx, 33 + dx, y, "skin")
+        g.hline(16 + dx, 31 + dx, 7 + dy, "skin")
+        g.hline(15 + dx, 32 + dx, 8 + dy, "skin")
+        for y, x0 in ((18, 15), (19, 15), (20, 16), (21, 16), (22, 17), (23, 17)):
+            xr = 47 - x0
+            g.hline(x0 + dx, xr + dx, y + dy, "skin")
+            g.plot(x0 - 1 + dx, y + dy, "outline")
+            g.plot(xr + 1 + dx, y + dy, "outline")
+        # rounded chin
+        g.plot(17 + dx, 24 + dy, "outline")
+        g.plot(18 + dx, 24 + dy, "skin_shadow")
+        g.hline(19 + dx, 28 + dx, 24 + dy, "skin")
+        g.plot(29 + dx, 24 + dy, "skin_shadow")
+        g.plot(30 + dx, 24 + dy, "outline")
+        g.plot(19 + dx, 25 + dy, "outline")
+        g.plot(20 + dx, 25 + dy, "skin_shadow")
+        g.hline(21 + dx, 26 + dx, 25 + dy, "skin")
+        g.plot(27 + dx, 25 + dy, "skin_shadow")
+        g.plot(28 + dx, 25 + dy, "outline")
+        g.hline(21 + dx, 26 + dx, 26 + dy, "outline")
+        g.hline(23 + dx, 24 + dx, 27 + dy, "outline")
+    else:
+        # skull: x14..33, y8..26
+        for y in range(9 + dy, 26 + dy):
+            g.hline(14 + dx, 33 + dx, y, "skin")
+        g.hline(16 + dx, 31 + dx, 7 + dy, "skin")
+        g.hline(15 + dx, 32 + dx, 8 + dy, "skin")
+        g.hline(15 + dx, 32 + dx, 26 + dy, "skin_shadow")
+        # jaw outline
+        g.hline(17 + dx, 30 + dx, 27 + dy, "outline")
+        g.hline(16 + dx, 16 + dx, 26 + dy, "outline")
+        g.hline(31 + dx, 31 + dx, 26 + dy, "outline")
     draw_hair_front(g, p, dx, dy, style)
-    draw_face(g, p, dx, dy)
+    draw_face(g, p, dx, dy, style)
 
 
 def draw_hair_front(g: Grid, p: Pose, dx: int, dy: int, style: Style) -> None:
@@ -297,7 +329,6 @@ def draw_hair_front(g: Grid, p: Pose, dx: int, dy: int, style: Style) -> None:
         g.vline(14 + dx, 11 + dy, 17 + dy, "hair")
         g.vline(34 + dx, 9 + dy, 17 + dy, "hair")
         g.vline(33 + dx, 11 + dy, 17 + dy, "hair")
-        draw_braids(g, p, dx, dy)
     else:
         # side locks framing the face, ending at the jaw
         g.vline(13 + dx, 9 + dy, 22 + dy, "hair")
@@ -348,58 +379,74 @@ def draw_hair_front(g: Grid, p: Pose, dx: int, dy: int, style: Style) -> None:
         g.plot(24 + dx, 4 + dy, "outline")
 
 
-def draw_braids(g: Grid, p: Pose, dx: int, dy: int) -> None:
-    """Twin braids hanging from behind the ears down to the waist.
+def draw_braids(g: Grid, p: Pose) -> None:
+    """Twin braids draping over the shoulders, in front of the chest.
 
-    Three hair columns with the outer edge outlined; the twist reads from a
-    shadow pixel that travels across the strand on a 4-row cycle, with a
-    highlight on the opposite side. Braids hang *behind* bare arms and hands
-    (a raised arm covers them), so a pixel the arm already drew as skin wins.
-    In the walk cycle each braid follows the step by one pixel and they swing
-    in opposite directions.
+    A short strand continues each side lock down beside the face, then the
+    braid crosses the shoulder and hangs in front of the torso to a tie just
+    above the hem. Drawn after the torso but before the arms and the strap:
+    a raised arm passes in front of its strand, the strap's top end crosses
+    over the drape, and the bag covers the tip; the head (chin, jaw) is drawn
+    last over the strand's top. The twist reads from a shadow pixel that
+    travels across the 3-wide strand on a 4-row cycle, with a highlight on
+    the opposite side. In the walk cycle the drape follows the step by one
+    pixel, opposite on the two sides.
     """
     sway = (p.prop_phase % 2) if p.legs in ("walk_a", "walk_b") else 0
-    tie_y = 38
+    dx = p.lean
+    dy = p.bob + p.jump
+    tie_y = 40
     twist = [0, 1, 2, 1]  # shadow column index within the 3-wide strand
     for side in ("l", "r"):
-        ox = dx + (sway if side == "l" else -sway)
+        sx = dx + (sway if side == "l" else -sway)
         if side == "l":
-            cols = (11 + ox, 12 + ox, 13 + ox)
-            outer = 10 + ox
+            conn = (13 + dx, 14 + dx)  # beside the face, ear to jaw
+            conn_wide = 15 + dx  # the lock widens where the jaw tapers in
+            conn_edge = 12 + dx
+            drape = (15 + sx, 16 + sx, 17 + sx)  # over the shoulder, in front
+            edge = 14 + sx
         else:
-            cols = (34 + ox, 35 + ox, 36 + ox)
-            outer = 37 + ox
+            conn = (34 + dx, 33 + dx)
+            conn_wide = 32 + dx
+            conn_edge = 35 + dx
+            drape = (32 + sx, 31 + sx, 30 + sx)
+            edge = 33 + sx
 
-        def put(x: int, y: int, color: str) -> None:
-            # braids pass behind skin (bare arms, hands) but over everything else
-            if g.px.get((x, y)) != "skin":
-                g.plot(x, y, color)
-
-        for i, y in enumerate(range(15, tie_y)):
+        # strand down the side of the face, continuing the side lock
+        for y in range(18, 24):
+            for x in conn:
+                g.plot(x, y + dy, "hair")
+            if y >= 22:
+                g.plot(conn_wide, y + dy, "hair")
+        g.vline(conn_edge, 16 + dy, 23 + dy, "outline")
+        # drape in front of the chest, down to the tie
+        for i, y in enumerate(range(24, tie_y)):
             phase = i % 4
-            for x in cols:
-                put(x, y + dy, "hair")
-            put(cols[twist[phase]], y + dy, "hair_shadow")
+            for x in drape:
+                g.plot(x, y + dy, "hair")
+            g.plot(drape[twist[phase]], y + dy, "hair_shadow")
             if phase == 0:
-                put(cols[0], y + dy, "hair_light")
+                g.plot(drape[0], y + dy, "hair_light")
             elif phase == 2:
-                put(cols[2], y + dy, "hair_light")
-        g.vline(outer, 15 + dy, tie_y - 1 + dy, "outline")
-        # hair tie and the tapering tip (skin still wins)
-        for x in cols:
-            put(x, tie_y + dy, "accent")
-            put(x, tie_y + 1 + dy, "accent")
-        put(cols[1], tie_y + 2 + dy, "hair")
-        put(cols[1], tie_y + 3 + dy, "outline")
+                g.plot(drape[2], y + dy, "hair_light")
+            g.plot(edge, y + dy, "outline")
+        # hair tie and the tapering tip
+        for x in drape:
+            g.plot(x, tie_y + dy, "accent")
+            g.plot(x, tie_y + 1 + dy, "accent")
+        g.plot(drape[1], tie_y + 2 + dy, "hair")
+        g.plot(drape[1], tie_y + 3 + dy, "outline")
 
 
-def draw_face(g: Grid, p: Pose, dx: int, dy: int) -> None:
+def draw_face(g: Grid, p: Pose, dx: int, dy: int, style: Style) -> None:
     eye_y = 17 + dy
     if p.eyes == "open":
         for ex in (17, 28):
             g.rect(ex + dx, eye_y, ex + 2 + dx, eye_y + 2, "eye")
             g.plot(ex + 2 + dx, eye_y, "white")
             g.plot(ex + 1 + dx, eye_y, "white")
+            if style.soft_face:
+                g.plot(ex + 2 + dx, eye_y + 1, "white")
     elif p.eyes == "wide":
         for ex in (17, 28):
             g.rect(ex + dx, eye_y - 1, ex + 2 + dx, eye_y + 3, "eye")
@@ -434,8 +481,13 @@ def draw_face(g: Grid, p: Pose, dx: int, dy: int) -> None:
         g.plot(26 + dx, mouth_y, "eye")
         g.plot(24 + dx, mouth_y + 1, "white")
     if p.blush:
-        g.hline(15 + dx, 16 + dx, 21 + dy, "blush")
-        g.hline(31 + dx, 32 + dx, 21 + dy, "blush")
+        if style.soft_face:
+            # on the tapering cheek, a row under each eye
+            g.hline(16 + dx, 18 + dx, 20 + dy, "blush")
+            g.hline(29 + dx, 31 + dx, 20 + dy, "blush")
+        else:
+            g.hline(15 + dx, 16 + dx, 21 + dy, "blush")
+            g.hline(31 + dx, 32 + dx, 21 + dy, "blush")
 
 
 def draw_torso(g: Grid, p: Pose, style: Style) -> None:
@@ -969,6 +1021,8 @@ def render_frame(pose: Pose, pal: dict[str, str], style: Style) -> Image.Image:
     draw_hair_back(g, pose)
     draw_legs(g, pose)
     draw_torso(g, pose, style)
+    if style.braids:
+        draw_braids(g, pose)
     draw_arm(g, pose, "l", style)
     draw_arm(g, pose, "r", style)
     if style.strap:
