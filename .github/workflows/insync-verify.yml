@@ -16,6 +16,7 @@ on:
       - "resources/insync/**"
       - "tools/insync-sprites/**"
       - "tools/insync-audio/**"
+      - "tools/insync-ui/**"
       - "Cargo.toml"
       - "Cargo.lock"
       - ".github/workflows/insync-verify.yml"
@@ -23,6 +24,7 @@ on:
     paths:
       - "crates/insync-*/**"
       - "tools/insync-audio/**"
+      - "tools/insync-ui/**"
       - ".github/workflows/insync-verify.yml"
 
 concurrency:
@@ -49,6 +51,11 @@ jobs:
         run: |
           python3 tools/insync-sprites/generate_sprites.py --out /tmp/insync-regen/sprites
           python3 tools/insync-sprites/check_pixel_drift.py /tmp/insync-regen/sprites
+      # The panel's mascot crops derive from the sprite sheets, so they drift
+      # whenever the sprites do; regenerate and compare pixels (same reason as
+      # above).
+      - name: No pixel drift against the committed panel images
+        run: python3 tools/insync-ui/generate_ui_images.py --check
       - name: Validate the alarm chime
         run: python3 tools/insync-audio/validate_alarm.py
       # The chime's synthesis uses only exactly-specified float operations, so

@@ -5,16 +5,26 @@
 use crate::app::Coordinator;
 use crate::clock;
 use crate::i18n::text;
+use crate::palette;
 use crate::store::{Alarm, AlarmRepeat, PersonalAnniversary, PersonalNote, PersonalTodo};
+use gpui_kit::assets::IconName;
 use gpui_kit::base::v_flex;
-use gpui_kit::component::button::Button;
+use gpui_kit::component::avatar::Avatar;
+use gpui_kit::component::bubble::{Bubble, BubbleVariant};
+use gpui_kit::component::button::{Button, ButtonVariants};
+use gpui_kit::component::checkbox::Checkbox;
+use gpui_kit::component::empty::{
+    Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyMediaVariant, EmptyTitle,
+};
 use gpui_kit::component::input::{Input, InputState};
-use gpui_kit::component::tab::{Tab as GpuiTab, TabBar};
-use gpui_kit::component::{ActiveTheme, Root};
+use gpui_kit::component::message::MessageAlignment;
+use gpui_kit::component::progress::ProgressCircle;
+use gpui_kit::component::switch::Switch;
+use gpui_kit::component::{ActiveTheme, Icon, Root, Sizable, Size};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::{
-    AnyElement, App, AppContext, Context, Entity, TitlebarOptions, Window, WindowBounds,
-    WindowHandle, WindowOptions, div, prelude::*, px, rgb, size,
+    AnyElement, App, AppContext, Context, Entity, Subscription, TitlebarOptions, Window,
+    WindowBounds, WindowHandle, WindowOptions, div, prelude::*, px, size,
 };
 use gpui_kit::{FontWeight, SharedString};
 use insync_client::SyncCommand;
@@ -22,6 +32,15 @@ use insync_core::{FocusState, PresenceState, SyncOp};
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::sync::Arc;
+
+/// The mascot portrait the panel's header and empty states show. Cut from the
+/// character sheet by `tools/insync-ui/generate_ui_images.py` and served by
+/// `crate::assets::InSyncAssets`.
+const PORTRAIT: &str = "insync/momo_portrait.png";
+
+/// The waving pose, used where an empty panel needs a friendlier face than a
+/// 48px avatar.
+const WAVE: &str = "insync/momo_wave.png";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum HubTab {
@@ -63,6 +82,40 @@ impl HubTab {
             HubTab::Settings => text(language, "tab.settings"),
         }
     }
+
+    /// The tab's tile glyph. Eight tabs of two-character labels are hard to
+    /// tell apart at a glance; the icon is what makes the tile recognisable
+    /// before the label is read.
+    fn icon(self) -> IconName {
+        match self {
+            HubTab::Chat => IconName::MessageSquareHeart,
+            HubTab::Letters => IconName::MailOpen,
+            HubTab::Focus => IconName::Timer,
+            HubTab::Todos => IconName::ListTodo,
+            HubTab::Notes => IconName::StickyNote,
+            HubTab::Anniversaries => IconName::CalendarHeart,
+            HubTab::Alarms => IconName::AlarmClock,
+            HubTab::Settings => IconName::Settings,
+        }
+    }
+
+    /// The name this section is stored under, matching the `tab.<key>` label.
+    fn key(self) -> &'static str {
+        match self {
+            HubTab::Chat => "chat",
+            HubTab::Letters => "letters",
+            HubTab::Focus => "focus",
+            HubTab::Todos => "todos",
+            HubTab::Notes => "notes",
+            HubTab::Anniversaries => "anniversaries",
+            HubTab::Alarms => "alarms",
+            HubTab::Settings => "settings",
+        }
+    }
+
+    fn from_key(key: &str) -> Option<Self> {
+        TABS.into_iter().find(|tab| tab.key() == key)
+    }
 }
 
 pub struct HubView {
@@ -84,6 +137,7 @@ pub struct HubView {
     personal_note_selected: Option<String>,
     shared_note_selected: Option<String>,
     focus_duration: i64,
+    _appearance: Subscription,
 }
 
 pub struct HubWindowHandle {
@@ -95,6 +149,17 @@ fn now_ms() -> i64 {
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_millis() as i64)
         .unwrap_or(0)
+}
+
+/// Wall-clock label for a stored timestamp, in the machine's own zone.
+///
+/// Empty when the timestamp cannot be read back, so a bad record leaves a
+/// blank line rather than a wrong hour.
+fn clock_time(timestamp: insync_core::UnixMs) -> String {
+    jiff::Timestamp::from_millisecond(timestamp)
+        .map(|moment| moment.to_zoned(jiff::tz::TimeZone::system()))
+        .map(|zoned| clock::format_time(&zoned, true))
+        .unwrap_or_default()
 }
 
 /// Opens the hub window and stores the handle in the coordinator.
@@ -117,10 +182,14 @@ fn open_hub(cx: &mut App) -> Option<HubWindowHandle> {
     let view_slot: Rc<RefCell<Option<Entity<HubView>>>> = Rc::new(RefCell::new(None));
     let view_slot_for_builder = Rc::clone(&view_slot);
     let opened = cx.open_window(options, move |window, cx| {
-        let view = cx.new(|cx| HubView::new(&core, window, cx));
         if !cx.has_global::<gpui_kit::component::Theme>() {
             gpui_kit::init(cx);
         }
+        // The panel wears the product palette, and keeps wearing it: a system
+        // appearance change reloads the base theme, so the palette is written
+        // again on every switch.
+        palette::install_for(palette::for_appearance(window.appearance()), cx);
+        let view = cx.new(|cx| HubView::new(&core, window, cx));
         *view_slot_for_builder.borrow_mut() = Some(view.clone());
         cx.new(|cx| Root::new(view, window, cx))
     });
@@ -245,31 +314,44 @@ fn apply_gesture(cx: &mut App, gesture: HubGesture) {
 
 impl HubView {
     fn new(core: &Arc<crate::app::AppCore>, window: &mut Window, cx: &mut Context<Self>) -> Self {
+        let language = core.language();
         let input =
             |window: &mut Window, cx: &mut Context<Self>| cx.new(|cx| InputState::new(window, cx));
-        let input_with =
-            |placeholder: &'static str, window: &mut Window, cx: &mut Context<Self>| {
-                cx.new(|cx| InputState::new(window, cx).placeholder(placeholder))
-            };
+        let input_with = |key: &str, window: &mut Window, cx: &mut Context<Self>| {
+            cx.new(|cx| InputState::new(window, cx).placeholder(text(&language, key)))
+        };
+        // Every window carries its own appearance, so the switch is observed
+        // here rather than app-wide: the palette is re-written for whatever the
+        // window has just become.
+        let appearance = window.observe_window_appearance(|window, cx| {
+            palette::install_for(palette::for_appearance(window.appearance()), cx);
+        });
         Self {
             core: Arc::clone(core),
-            tab: HubTab::Chat,
+            tab: core
+                .window_store
+                .load()
+                .hub_tab
+                .as_deref()
+                .and_then(HubTab::from_key)
+                .unwrap_or(HubTab::Chat),
             chat_input: input_with("chat.placeholder", window, cx),
             letter_input: input_with("letters.placeholder", window, cx),
             todo_input: input_with("todos.add", window, cx),
             note_input: input(window, cx),
             anniversary_name_input: input_with("days.add", window, cx),
-            anniversary_date_input: input(window, cx),
+            anniversary_date_input: input_with("days.add", window, cx),
             alarm_title_input: input_with("alarms.add", window, cx),
-            alarm_time_input: input_with("", window, cx),
+            alarm_time_input: input_with("alarms.time", window, cx),
             server_input: input_with("settings.server", window, cx),
-            username_input: input_with("", window, cx),
-            password_input: input_with("", window, cx),
+            username_input: input_with("settings.username", window, cx),
+            password_input: input_with("settings.password", window, cx),
             invite_input: input_with("settings.invite_code", window, cx),
             focus_topic_input: input_with("focus.topic", window, cx),
             personal_note_selected: None,
             shared_note_selected: None,
             focus_duration: 1500,
+            _appearance: appearance,
         }
     }
 
@@ -617,7 +699,7 @@ impl HubView {
         cx.notify();
     }
 
-    fn set_language(&mut self, language: &str, cx: &mut Context<Self>) {
+    fn set_language(&mut self, language: &str, window: &mut Window, cx: &mut Context<Self>) {
         let mut settings = self.core.settings_snapshot();
         settings.language = language.to_string();
         self.core.save_settings(settings);
@@ -626,7 +708,48 @@ impl HubView {
             .language
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner) = language.to_string();
+        self.relabel_inputs(window, cx);
         cx.notify();
+    }
+
+    /// Re-labels the input placeholders after a language switch.
+    ///
+    /// The placeholders are state on the input, not text drawn from the view's
+    /// current language, so they have to be written again when that language
+    /// changes — otherwise the hints stay in the language the panel opened in.
+    fn relabel_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let language = self.language();
+        let chat = self.chat_input.clone();
+        let letter = self.letter_input.clone();
+        let todo = self.todo_input.clone();
+        let anniversary_name = self.anniversary_name_input.clone();
+        let anniversary_date = self.anniversary_date_input.clone();
+        let alarm_title = self.alarm_title_input.clone();
+        let alarm_time = self.alarm_time_input.clone();
+        let server = self.server_input.clone();
+        let username = self.username_input.clone();
+        let password = self.password_input.clone();
+        let invite = self.invite_input.clone();
+        let focus_topic = self.focus_topic_input.clone();
+        for (input, key) in [
+            (chat, "chat.placeholder"),
+            (letter, "letters.placeholder"),
+            (todo, "todos.add"),
+            (anniversary_name, "days.add"),
+            (anniversary_date, "days.add"),
+            (alarm_title, "alarms.add"),
+            (alarm_time, "alarms.time"),
+            (server, "settings.server"),
+            (username, "settings.username"),
+            (password, "settings.password"),
+            (invite, "settings.invite_code"),
+            (focus_topic, "focus.topic"),
+        ] {
+            let placeholder = text(&language, key);
+            input.update(cx, |state, cx| {
+                state.set_placeholder(placeholder, window, cx);
+            });
+        }
     }
 
     /// Runs a REST account operation on a background thread; results are
@@ -720,13 +843,279 @@ impl HubView {
 
     // -------------------------------------------------------------- render
 
-    fn section_header(&self, title: &str, cx: &Context<Self>) -> AnyElement {
+    /// A group of related rows on its own surface, separated from the canvas
+    /// by a hairline border rather than a shadow.
+    fn card(&self, cx: &Context<Self>) -> gpui_kit::Div {
+        let theme = cx.theme();
         div()
-            .text_size(px(13.))
-            .font_weight(FontWeight::SEMIBOLD)
-            .text_color(cx.theme().colors.muted_foreground)
-            .child(title.to_string())
+            .w_full()
+            .p(theme.spacing_tokens().sm)
+            .rounded(theme.radius_lg)
+            .bg(theme.colors.popover)
+            .border_1()
+            .border_color(theme.colors.border)
+    }
+
+    /// A section label with the glyph that says which section it is.
+    fn section(&self, icon: IconName, title: &str, cx: &Context<Self>) -> AnyElement {
+        let theme = cx.theme();
+        gpui_kit::base::h_flex()
+            .w_full()
+            .items_center()
+            .gap_1p5()
+            .child(
+                Icon::new(icon)
+                    .with_size(Size::Small)
+                    .text_color(theme.colors.muted_foreground),
+            )
+            .child(
+                div()
+                    .text_size(theme.typography_tokens().xs.size)
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .text_color(theme.colors.muted_foreground)
+                    .child(title.to_string()),
+            )
             .into_any_element()
+    }
+
+    /// The friendly placeholder a panel shows instead of an empty scroll area.
+    ///
+    /// A blank body reads as a broken panel; the mascot plus one line of text
+    /// says "nothing here yet" instead.
+    fn empty_state(
+        &self,
+        media: IconName,
+        title: &str,
+        hint: &str,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let theme = cx.theme();
+        Empty::new()
+            .header(
+                EmptyHeader::new()
+                    .media(
+                        EmptyMedia::new()
+                            .with_variant(EmptyMediaVariant::Icon)
+                            .child(
+                                Icon::new(media)
+                                    .with_size(Size::Large)
+                                    .text_color(theme.colors.primary),
+                            ),
+                    )
+                    .title(EmptyTitle::new().child(title.to_string()))
+                    .description(
+                        EmptyDescription::new()
+                            .text_color(theme.colors.muted_foreground)
+                            .child(hint.to_string()),
+                    ),
+            )
+            .into_any_element()
+    }
+
+    /// The taller placeholder the chat and letters panels show, led by the
+    /// mascot itself rather than an icon.
+    fn mascot_state(&self, title: &str, hint: &str, cx: &Context<Self>) -> AnyElement {
+        let theme = cx.theme();
+        Empty::new()
+            .header(
+                EmptyHeader::new()
+                    .media(
+                        EmptyMedia::new().child(
+                            gpui_kit::img(WAVE)
+                                .h(px(120.))
+                                .w(px(62.))
+                                .object_fit(gpui_kit::ObjectFit::Contain),
+                        ),
+                    )
+                    .title(EmptyTitle::new().child(title.to_string()))
+                    .description(
+                        EmptyDescription::new()
+                            .text_color(theme.colors.muted_foreground)
+                            .child(hint.to_string()),
+                    ),
+            )
+            .into_any_element()
+    }
+
+    /// A pill label, e.g. the presence line in the header or the days left on
+    /// an anniversary.
+    fn pill(&self, label: String, tinted: bool, cx: &Context<Self>) -> AnyElement {
+        let theme = cx.theme();
+        let (background, foreground) = if tinted {
+            (theme.colors.primary, theme.colors.primary_foreground)
+        } else {
+            (theme.colors.muted, theme.colors.muted_foreground)
+        };
+        div()
+            .flex()
+            .items_center()
+            .gap_1()
+            .px_2()
+            .py_0p5()
+            .rounded(theme.radius_full())
+            .bg(background)
+            .text_size(theme.typography_tokens().xs.size)
+            .text_color(foreground)
+            .child(label)
+            .into_any_element()
+    }
+
+    /// The header: who this panel belongs to, and whether the partner is
+    /// reachable.
+    fn render_header(&self, cx: &Context<Self>) -> AnyElement {
+        let theme = cx.theme().clone();
+        let partner = self
+            .core
+            .engine
+            .state
+            .read(|s| s.partner.as_ref().map(|p| p.display_name.clone()))
+            .flatten();
+        let presence = self
+            .core
+            .engine
+            .state
+            .read(|s| s.partner_presence.clone())
+            .flatten();
+        let online = presence
+            .as_ref()
+            .is_some_and(|p| p.online && p.state != PresenceState::Dnd);
+        let status = if partner.is_none() {
+            self.t("settings.no_partner")
+        } else if online {
+            self.t("status.online")
+        } else if presence
+            .as_ref()
+            .is_some_and(|p| p.state == PresenceState::Dnd)
+        {
+            self.t("status.dnd")
+        } else {
+            self.t("status.offline")
+        };
+        let dot = if online {
+            theme.colors.success
+        } else {
+            theme.colors.muted_foreground
+        };
+
+        gpui_kit::base::h_flex()
+            .w_full()
+            .items_center()
+            .gap_2p5()
+            .px_3()
+            .py_2p5()
+            .bg(theme.colors.muted)
+            .border_b_1()
+            .border_color(theme.colors.border)
+            .child(Avatar::new().src(PORTRAIT).with_size(Size::Size(px(40.))))
+            .child(
+                v_flex()
+                    .flex_1()
+                    .min_w_0()
+                    .gap_1()
+                    .child(
+                        div()
+                            .text_size(theme.typography_tokens().md.size)
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(theme.colors.foreground)
+                            .child(self.t("app.name").to_string()),
+                    )
+                    .child(
+                        gpui_kit::base::h_flex()
+                            .items_center()
+                            .gap_1p5()
+                            .min_w_0()
+                            .child(div().size(px(7.)).rounded_full().bg(dot))
+                            .child(
+                                div()
+                                    .text_size(theme.typography_tokens().xs.size)
+                                    .text_color(theme.colors.muted_foreground)
+                                    .child(match &partner {
+                                        Some(name) => format!("{name} · {status}"),
+                                        None => status.to_string(),
+                                    }),
+                            ),
+                    ),
+            )
+            .child(
+                Icon::new(IconName::Heart)
+                    .with_size(Size::Medium)
+                    .text_color(theme.colors.primary),
+            )
+            .into_any_element()
+    }
+
+    /// The tab strip: eight rounded tiles over two rows.
+    ///
+    /// A single-row tab bar cannot hold eight labelled tabs in a panel this
+    /// narrow — the last ones fall off the edge — and the two-row grid keeps
+    /// every section one click away at the minimum window size.
+    fn render_tabs(&self, cx: &Context<Self>) -> AnyElement {
+        let theme = cx.theme().clone();
+        let language = self.language();
+        let view = cx.entity().downgrade();
+        let mut grid = v_flex()
+            .w_full()
+            .gap(px(6.))
+            .px_3()
+            .py_2()
+            .border_b_1()
+            .border_color(theme.colors.border);
+        for row in TABS.chunks(4) {
+            let mut line = gpui_kit::base::h_flex().w_full().gap(px(6.));
+            for tab in row {
+                let active = self.tab == *tab;
+                let icon_color = if active {
+                    theme.colors.primary_foreground
+                } else {
+                    theme.colors.muted_foreground
+                };
+                let label_color = icon_color;
+                let view_click = view.clone();
+                let index = tab.index();
+                line = line.child(
+                    v_flex()
+                        .id(SharedString::from(format!("hub-tile-{index}")))
+                        .flex_1()
+                        .min_w_0()
+                        .items_center()
+                        .justify_center()
+                        .gap(px(3.))
+                        .py(px(7.))
+                        .rounded(theme.radius_lg)
+                        .text_color(label_color)
+                        .when(active, |tile| tile.bg(theme.colors.primary))
+                        .when(!active, |tile| {
+                            tile.hover(|tile| tile.bg(theme.colors.muted))
+                        })
+                        .on_click(move |_, _, cx| {
+                            let _ = view_click.update(cx, |view, cx| {
+                                if let Some(tab) = TABS.get(index) {
+                                    view.tab = *tab;
+                                    view.core.save_hub_tab(tab.key());
+                                    cx.notify();
+                                }
+                            });
+                        })
+                        .child(
+                            Icon::new(tab.icon())
+                                .with_size(Size::Small)
+                                .text_color(icon_color),
+                        )
+                        .child(
+                            div()
+                                .text_size(theme.typography_tokens().xs.size)
+                                .font_weight(if active {
+                                    FontWeight::SEMIBOLD
+                                } else {
+                                    FontWeight::NORMAL
+                                })
+                                .child(tab.title(&language).to_string()),
+                        ),
+                );
+            }
+            grid = grid.child(line);
+        }
+        grid.into_any_element()
     }
 
     fn render_chat(&mut self, cx: &mut Context<Self>) -> AnyElement {
@@ -743,105 +1132,89 @@ impl HubView {
             .state
             .read(|s| s.messages.iter().rev().take(60).rev().cloned().collect())
             .unwrap_or_default();
-        let status = self.core.status_text();
-        let presence = self
-            .core
-            .engine
-            .state
-            .read(|s| s.partner_presence.clone())
-            .flatten();
-        let partner_name = self
-            .core
-            .engine
-            .state
-            .read(|s| s.partner.as_ref().map(|p| p.display_name.clone()))
-            .flatten()
-            .unwrap_or_else(|| self.t("settings.no_partner").to_string());
-        let online = presence
-            .as_ref()
-            .is_some_and(|p| p.online && p.state != PresenceState::Dnd);
         let input = self.chat_input.clone();
         let view = cx.entity().downgrade();
+        let empty = messages.is_empty();
+
+        let mut list = v_flex()
+            .flex_1()
+            .gap_2()
+            .children(messages.into_iter().map(|message| {
+                let mine = my_id.as_ref().is_some_and(|id| message.sender_id == *id);
+                // Mine is filled with the theme's rose, the partner's is an
+                // outlined surface: the two are told apart by shape and colour
+                // rather than by reading the sender each time.
+                let bubble = Bubble::new()
+                    .alignment(if mine {
+                        MessageAlignment::End
+                    } else {
+                        MessageAlignment::Start
+                    })
+                    .with_variant(if mine {
+                        BubbleVariant::Filled
+                    } else {
+                        BubbleVariant::Outline
+                    })
+                    .max_w(px(260.))
+                    .child(
+                        div()
+                            .text_size(theme.typography_tokens().sm.size)
+                            .child(message.body.clone()),
+                    );
+                v_flex()
+                    .w_full()
+                    .gap_1()
+                    .items_center()
+                    .when(mine, |row| row.items_end())
+                    .when(!mine, |row| row.items_start())
+                    .child(bubble)
+                    .child(
+                        div()
+                            .px_1()
+                            .text_size(theme.typography_tokens().xs.size)
+                            .text_color(theme.colors.muted_foreground)
+                            .child(clock_time(message.created_at)),
+                    )
+            }));
+        if empty {
+            list = list
+                .items_center()
+                .justify_center()
+                .child(self.mascot_state(self.t("chat.empty"), self.t("chat.empty_hint"), cx));
+        }
+
         v_flex()
             .flex_1()
             .gap_2()
             .p_2()
             .child(
                 div()
-                    .flex()
-                    .items_center()
-                    .justify_between()
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .gap_2()
-                            .child(div().size(px(8.)).rounded_full().bg(if online {
-                                rgb(0x66bb6a)
-                            } else {
-                                rgb(0xbbbbbb)
-                            }))
-                            .child(
-                                div()
-                                    .text_size(px(13.))
-                                    .font_weight(FontWeight::SEMIBOLD)
-                                    .child(partner_name),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .text_size(px(11.))
-                            .text_color(theme.colors.muted_foreground)
-                            .child(status),
-                    ),
-            )
-            .child(
-                div()
                     .id("chat-list")
                     .flex_1()
                     .overflow_y_scroll()
-                    .flex()
-                    .flex_col()
-                    .gap_2()
-                    .children(messages.into_iter().map(|message| {
-                        let mine = my_id.as_ref().is_some_and(|id| message.sender_id == *id);
-                        div().flex().when(mine, |row| row.justify_end()).child(
-                            div()
-                                .max_w(px(280.))
-                                .px_2()
-                                .py_1()
-                                .rounded(px(8.))
-                                .bg(if mine {
-                                    theme.colors.primary
-                                } else {
-                                    theme.colors.secondary
-                                })
-                                .text_color(if mine {
-                                    theme.colors.primary_foreground
-                                } else {
-                                    theme.colors.foreground
-                                })
-                                .child(div().text_size(px(13.)).child(message.body.clone())),
-                        )
-                    })),
+                    .child(list),
             )
             .child(
-                div()
-                    .flex()
-                    .gap_2()
-                    .child(div().flex_1().child(Input::new(&input)))
-                    .child(
-                        Button::new("chat-send")
-                            .label(self.t("chat.send"))
-                            .on_click({
-                                let view = view.clone();
-                                move |_, _window, cx| {
-                                    let _ = view.update_in(cx, |view, window, cx| {
-                                        view.send_chat(window, cx)
-                                    });
-                                }
-                            }),
-                    ),
+                self.card(cx).child(
+                    gpui_kit::base::h_flex()
+                        .w_full()
+                        .items_center()
+                        .gap_2()
+                        .child(div().flex_1().min_w_0().child(Input::new(&input)))
+                        .child(
+                            Button::new("chat-send")
+                                .label(self.t("chat.send"))
+                                .icon(IconName::Send)
+                                .on_click({
+                                    let view = view.clone();
+                                    move |_, _window, cx| {
+                                        let _ = view.update_in(cx, |view, window, cx| {
+                                            view.send_chat(window, cx)
+                                        });
+                                    }
+                                }),
+                        ),
+                ),
             )
             .into_any_element()
     }
@@ -860,66 +1233,136 @@ impl HubView {
             .state
             .read(|s| s.letters.clone())
             .unwrap_or_default();
-        let zh = self.language() == "zh-CN";
         let input = self.letter_input.clone();
         let view = cx.entity().downgrade();
+        let empty = letters.is_empty();
+        let mut list = v_flex()
+            .flex_1()
+            .gap_2()
+            .children(letters.into_iter().map(|letter| {
+                let unread = my_id
+                    .as_ref()
+                    .is_some_and(|id| letter.sender_id != *id && letter.read_at.is_none());
+                let view_read = view.clone();
+                let letter_id = letter.id.clone();
+                let mine = my_id.as_ref().is_some_and(|id| letter.sender_id == *id);
+                v_flex()
+                    .w_full()
+                    .gap_2()
+                    .p_3()
+                    .rounded(theme.radius_lg)
+                    .bg(if unread {
+                        theme.colors.accent
+                    } else {
+                        theme.colors.popover
+                    })
+                    .border_1()
+                    .border_color(if unread {
+                        theme.colors.primary
+                    } else {
+                        theme.colors.border
+                    })
+                    .child(
+                        gpui_kit::base::h_flex()
+                            .w_full()
+                            .items_center()
+                            .justify_between()
+                            .gap_2()
+                            .child(
+                                gpui_kit::base::h_flex()
+                                    .items_center()
+                                    .gap_1p5()
+                                    .child(
+                                        Icon::new(IconName::MailOpen)
+                                            .with_size(Size::Small)
+                                            .text_color(theme.colors.muted_foreground),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_size(theme.typography_tokens().xs.size)
+                                            .text_color(theme.colors.muted_foreground)
+                                            .child(format!(
+                                                "{} {}",
+                                                if mine {
+                                                    self.t("letters.from_me")
+                                                } else {
+                                                    self.t("letters.from_partner")
+                                                },
+                                                clock_time(letter.created_at)
+                                            )),
+                                    ),
+                            )
+                            .when(unread, |row| {
+                                row.child(self.pill(self.t("letters.unread").to_string(), true, cx))
+                            }),
+                    )
+                    .child(
+                        div()
+                            .text_size(theme.typography_tokens().sm.size)
+                            .text_color(theme.colors.foreground)
+                            .child(letter.body.clone()),
+                    )
+                    .when(unread, |card| {
+                        card.child(
+                            gpui_kit::base::h_flex().w_full().justify_end().child(
+                                Button::new(SharedString::from(format!("read-{letter_id}")))
+                                    .label(self.t("letters.mark_read"))
+                                    .compact()
+                                    .on_click(move |_, _, cx| {
+                                        let id = letter_id.clone();
+                                        let _ = view_read.update_in(cx, |v, _window, _cx| {
+                                            v.core.engine.command(SyncCommand::Enqueue(
+                                                SyncOp::MarkLetterRead { letter_id: id },
+                                            ));
+                                        });
+                                    }),
+                            ),
+                        )
+                    })
+            }));
+        if empty {
+            list = list
+                .items_center()
+                .justify_center()
+                .child(self.mascot_state(
+                    self.t("letters.empty"),
+                    self.t("letters.empty_hint"),
+                    cx,
+                ));
+        }
+
         v_flex()
             .flex_1()
             .gap_2()
             .p_2()
-            .child(div().child(Input::new(&input)))
             .child(
-                Button::new("letter-send")
-                    .label(self.t("letters.leave"))
-                    .on_click({
-                        let view = view.clone();
-                        move |_, _window, cx| {
-                            let _ =
-                                view.update_in(cx, |view, window, cx| view.send_letter(window, cx));
-                        }
-                    }),
+                self.card(cx).child(
+                    gpui_kit::base::h_flex()
+                        .w_full()
+                        .items_center()
+                        .gap_2()
+                        .child(div().flex_1().min_w_0().child(Input::new(&input)))
+                        .child(
+                            Button::new("letter-send")
+                                .label(self.t("letters.leave"))
+                                .icon(IconName::MailOpen)
+                                .on_click({
+                                    let view = view.clone();
+                                    move |_, _window, cx| {
+                                        let _ = view.update_in(cx, |view, window, cx| {
+                                            view.send_letter(window, cx)
+                                        });
+                                    }
+                                }),
+                        ),
+                ),
             )
             .child(
                 div()
                     .id("letter-list")
                     .flex_1()
                     .overflow_y_scroll()
-                    .flex()
-                    .flex_col()
-                    .gap_2()
-                    .children(letters.into_iter().map(|letter| {
-                        let unread = my_id
-                            .as_ref()
-                            .is_some_and(|id| letter.sender_id != *id && letter.read_at.is_none());
-                        let view = view.clone();
-                        let letter_id = letter.id.clone();
-                        let view_read = view.clone();
-                        v_flex()
-                            .p_2()
-                            .rounded(px(8.))
-                            .bg(if unread {
-                                theme.colors.secondary
-                            } else {
-                                theme.colors.background
-                            })
-                            .border_1()
-                            .border_color(theme.colors.border)
-                            .child(div().text_size(px(13.)).child(letter.body.clone()))
-                            .when(unread, |card| {
-                                card.child(
-                                    Button::new(SharedString::from(format!("read-{}", letter_id)))
-                                        .label(if zh { "标记已读" } else { "Mark read" })
-                                        .on_click(move |_, _, cx| {
-                                            let id = letter_id.clone();
-                                            let _ = view_read.update_in(cx, |v, _window, _cx| {
-                                                v.core.engine.command(SyncCommand::Enqueue(
-                                                    SyncOp::MarkLetterRead { letter_id: id },
-                                                ));
-                                            });
-                                        }),
-                                )
-                            })
-                    })),
+                    .child(list),
             )
             .into_any_element()
     }
@@ -939,34 +1382,32 @@ impl HubView {
             .read(|s| s.me.as_ref().map(|u| u.id.clone()))
             .flatten();
         let view = cx.entity().downgrade();
-        let zh = self.language() == "zh-CN";
-        let mut panel = v_flex().flex_1().gap_2();
+        let mut panel = v_flex().flex_1().gap_2().p_2();
         if let Some(session) = focus {
             let remaining = session.remaining_ms(now_ms()).unwrap_or(0);
             let minutes = remaining / 60_000;
             let seconds = (remaining % 60_000) / 1000;
             let initiator = me_id.as_ref().is_some_and(|id| id == &session.initiator_id);
-            panel = panel
-                .child(
-                    div()
-                        .text_size(px(24.))
-                        .font_weight(FontWeight::BOLD)
-                        .child(format!("{minutes:02}:{seconds:02}")),
-                )
-                .child(
-                    div()
-                        .text_size(px(13.))
-                        .text_color(theme.colors.muted_foreground)
-                        .child(session.topic.clone().unwrap_or_default()),
-                );
+            let total_ms = session.duration_secs * 1000;
+            let elapsed = (total_ms - remaining).max(0);
+            let progress = if total_ms > 0 {
+                (elapsed as f32 / total_ms as f32) * 100.
+            } else {
+                0.
+            };
+            let (state_label, state_tint) = match session.state {
+                FocusState::Invited => (self.t("focus.invited"), theme.colors.warning),
+                FocusState::Paused => (self.t("focus.paused"), theme.colors.muted_foreground),
+                _ => (self.t("focus.active"), theme.colors.success),
+            };
+            let mut actions = gpui_kit::base::h_flex().gap_2().flex_wrap();
             match session.state {
                 FocusState::Invited => {
                     if !initiator {
-                        panel = panel
-                            .child(div().text_size(px(12.)).child(self.t("focus.waiting")))
+                        actions = actions
                             .child(
                                 Button::new("focus-accept")
-                                    .label(if zh { "接受" } else { "Accept" })
+                                    .label(self.t("focus.accept"))
                                     .on_click({
                                         let view = view.clone();
                                         move |_, _, cx| {
@@ -982,7 +1423,8 @@ impl HubView {
                             )
                             .child(
                                 Button::new("focus-decline")
-                                    .label(if zh { "婉拒" } else { "Decline" })
+                                    .label(self.t("focus.decline"))
+                                    .outline()
                                     .on_click({
                                         let view = view.clone();
                                         move |_, _, cx| {
@@ -997,9 +1439,10 @@ impl HubView {
                                     }),
                             );
                     } else {
-                        panel = panel.child(
+                        actions = actions.child(
                             Button::new("focus-cancel")
                                 .label(self.t("focus.cancel"))
+                                .outline()
                                 .on_click({
                                     let view = view.clone();
                                     move |_, _, cx| {
@@ -1016,46 +1459,43 @@ impl HubView {
                     }
                 }
                 FocusState::Active => {
-                    panel = panel.child(
-                        div()
-                            .flex()
-                            .gap_2()
-                            .child(
-                                Button::new("focus-pause")
-                                    .label(self.t("focus.pause"))
-                                    .on_click({
-                                        let view = view.clone();
-                                        move |_, _, cx| {
-                                            let _ = view.update_in(cx, |v, window, cx| {
-                                                v.focus_action(
-                                                    window,
-                                                    insync_core::FocusAction::Pause,
-                                                    cx,
-                                                )
-                                            });
-                                        }
-                                    }),
-                            )
-                            .child(
-                                Button::new("focus-finish")
-                                    .label(self.t("focus.finish"))
-                                    .on_click({
-                                        let view = view.clone();
-                                        move |_, _, cx| {
-                                            let _ = view.update_in(cx, |v, window, cx| {
-                                                v.focus_action(
-                                                    window,
-                                                    insync_core::FocusAction::FinishEarly,
-                                                    cx,
-                                                )
-                                            });
-                                        }
-                                    }),
-                            ),
-                    );
+                    actions = actions
+                        .child(
+                            Button::new("focus-pause")
+                                .label(self.t("focus.pause"))
+                                .on_click({
+                                    let view = view.clone();
+                                    move |_, _, cx| {
+                                        let _ = view.update_in(cx, |v, window, cx| {
+                                            v.focus_action(
+                                                window,
+                                                insync_core::FocusAction::Pause,
+                                                cx,
+                                            )
+                                        });
+                                    }
+                                }),
+                        )
+                        .child(
+                            Button::new("focus-finish")
+                                .label(self.t("focus.finish"))
+                                .outline()
+                                .on_click({
+                                    let view = view.clone();
+                                    move |_, _, cx| {
+                                        let _ = view.update_in(cx, |v, window, cx| {
+                                            v.focus_action(
+                                                window,
+                                                insync_core::FocusAction::FinishEarly,
+                                                cx,
+                                            )
+                                        });
+                                    }
+                                }),
+                        );
                 }
                 FocusState::Paused => {
-                    panel = panel.child(
+                    actions = actions.child(
                         Button::new("focus-resume")
                             .label(self.t("focus.resume"))
                             .on_click({
@@ -1070,40 +1510,140 @@ impl HubView {
                 }
                 _ => {}
             }
+            // The ring carries the session's progress, so the remaining time
+            // can be read at a glance without doing arithmetic on the clock.
+            let timer = ProgressCircle::new("focus-progress")
+                .value(progress)
+                .color(theme.colors.primary)
+                .child(
+                    div()
+                        .text_size(px(34.))
+                        .font_family(theme.mono_font_family.clone())
+                        .font_weight(FontWeight::BOLD)
+                        .text_color(theme.colors.foreground)
+                        .child(format!("{minutes:02}:{seconds:02}")),
+                );
+            panel = panel.child(
+                self.card(cx)
+                    .flex()
+                    .flex_col()
+                    .items_center()
+                    .gap_3()
+                    .py_4()
+                    .child(timer)
+                    .child(
+                        gpui_kit::base::h_flex()
+                            .items_center()
+                            .gap_2()
+                            .child(div().size(px(7.)).rounded_full().bg(state_tint))
+                            .child(
+                                div()
+                                    .text_size(theme.typography_tokens().xs.size)
+                                    .text_color(theme.colors.muted_foreground)
+                                    .child(state_label.to_string()),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .text_size(theme.typography_tokens().sm.size)
+                            .text_color(theme.colors.foreground)
+                            .child(session.topic.clone().unwrap_or_default()),
+                    )
+                    .when(session.state == FocusState::Invited, |card| {
+                        card.child(
+                            div()
+                                .text_size(theme.typography_tokens().xs.size)
+                                .text_color(theme.colors.muted_foreground)
+                                .child(if initiator {
+                                    self.t("focus.waiting_partner")
+                                } else {
+                                    self.t("focus.waiting")
+                                }),
+                        )
+                    })
+                    .child(actions),
+            );
         } else {
             let topic_input = self.focus_topic_input.clone();
             let durations = [25i64, 45, 50, 90];
-            panel = panel
-                .child(self.section_header(self.t("focus.invite"), cx))
-                .child(div().child(Input::new(&topic_input)))
-                .child(div().flex().gap_2().children(durations.map(|mins| {
-                    let view = view.clone();
-                    Button::new(SharedString::from(format!("dur-{mins}")))
-                        .label(format!("{} {}", mins, self.t("focus.minutes")))
-                        .on_click(move |_, _, cx| {
-                            let _ = view.update_in(cx, |v, _window, _cx| {
-                                v.focus_duration = mins * 60;
-                            });
-                        })
-                })))
-                .child(
-                    Button::new("focus-invite")
-                        .label(self.t("focus.invite"))
-                        .on_click({
-                            let view = view.clone();
-                            move |_, _, cx| {
-                                let _ = view.update_in(cx, |view, window, cx| {
-                                    view.invite_focus(window, cx)
-                                });
-                            }
-                        }),
-                );
+            let chosen = self.focus_duration;
+            panel = panel.child(
+                self.card(cx)
+                    .flex()
+                    .flex_col()
+                    .gap_2()
+                    .child(self.section(IconName::Timer, self.t("focus.start"), cx))
+                    .child(div().child(Input::new(&topic_input)))
+                    .child(
+                        gpui_kit::base::h_flex()
+                            .w_full()
+                            .gap_2()
+                            .children(durations.map(|mins| {
+                                let view = view.clone();
+                                let active = chosen == mins * 60;
+                                v_flex()
+                                    .id(SharedString::from(format!("dur-{mins}")))
+                                    .flex_1()
+                                    .items_center()
+                                    .py_2()
+                                    .rounded(theme.radius_lg)
+                                    .bg(if active {
+                                        theme.colors.primary
+                                    } else {
+                                        theme.colors.muted
+                                    })
+                                    .text_color(if active {
+                                        theme.colors.primary_foreground
+                                    } else {
+                                        theme.colors.foreground
+                                    })
+                                    .when(!active, |tile| {
+                                        tile.hover(|tile| tile.bg(theme.colors.accent))
+                                    })
+                                    .on_click(move |_, _, cx| {
+                                        let _ = view.update_in(cx, |v, _window, cx| {
+                                            v.focus_duration = mins * 60;
+                                            cx.notify();
+                                        });
+                                    })
+                                    .child(
+                                        div()
+                                            .text_size(theme.typography_tokens().sm.size)
+                                            .font_weight(FontWeight::SEMIBOLD)
+                                            .child(mins.to_string()),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_size(theme.typography_tokens().xs.size)
+                                            .child(self.t("focus.minutes")),
+                                    )
+                            })),
+                    )
+                    .child(
+                        Button::new("focus-invite")
+                            .label(self.t("focus.invite"))
+                            .icon(IconName::HeartHandshake)
+                            .on_click({
+                                let view = view.clone();
+                                move |_, _, cx| {
+                                    let _ = view.update_in(cx, |view, window, cx| {
+                                        view.invite_focus(window, cx)
+                                    });
+                                }
+                            }),
+                    )
+                    .child(
+                        div()
+                            .text_size(theme.typography_tokens().xs.size)
+                            .text_color(theme.colors.muted_foreground)
+                            .child(self.t("focus.hint")),
+                    ),
+            );
         }
         panel.into_any_element()
     }
 
     fn render_todos(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let theme = cx.theme().clone();
         let personal = self.core.todos_store.load();
         let shared = self
             .core
@@ -1113,130 +1653,127 @@ impl HubView {
             .unwrap_or_default();
         let input = self.todo_input.clone();
         let view = cx.entity().downgrade();
-        let zh = self.language() == "zh-CN";
-        let mut list = v_flex().gap_1();
-        list = list.child(self.section_header(self.t("todos.personal"), cx));
+        let empty = personal.todos.is_empty() && shared.is_empty();
+        let mut list = v_flex().flex_1().gap_1p5();
+        list = list.child(self.section(IconName::ListTodo, self.t("todos.personal"), cx));
         for todo in personal.todos.iter().take(30) {
             let id = todo.id.clone();
+            let done = todo.completed_at.is_some();
+            let view_toggle = view.clone();
+            let view_delete = view.clone();
             let id_toggle = id.clone();
             let id_delete = id.clone();
-            let done = todo.completed_at.is_some();
-            let view_click = view.clone();
-            let view_delete = view.clone();
             list = list.child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_2()
-                    .child(
-                        div()
-                            .flex_1()
-                            .text_size(px(13.))
-                            .text_color(if done {
-                                theme.colors.muted_foreground
-                            } else {
-                                theme.colors.foreground
-                            })
-                            .child(if done {
-                                format!("✓ {}", todo.title)
-                            } else {
-                                todo.title.clone()
-                            }),
-                    )
-                    .child(
-                        Button::new(SharedString::from(format!("todo-toggle-{id_toggle}")))
-                            .label(if done { "↩" } else { "✓" })
-                            .on_click(move |_, _window, cx| {
-                                let _ = view_click.update_in(cx, |v, window, cx| {
-                                    v.toggle_personal_todo(window, &id_toggle, cx)
-                                });
-                            }),
-                    )
-                    .child(
-                        Button::new(SharedString::from(format!("todo-del-{id_delete}")))
-                            .label("✕")
-                            .on_click(move |_, _window, cx| {
-                                let _ = view_delete.update_in(cx, |v, window, cx| {
-                                    v.delete_personal_todo(window, &id_delete, cx)
-                                });
-                            }),
-                    ),
+                self.card(cx).child(
+                    gpui_kit::base::h_flex()
+                        .w_full()
+                        .items_center()
+                        .gap_2()
+                        .child(
+                            // A checkbox, not a ✓ button: the state is
+                            // visible at a glance and the whole row reads
+                            // as one control.
+                            Checkbox::new(SharedString::from(format!("todo-{id}")))
+                                .checked(done)
+                                .label(SharedString::from(todo.title.clone()))
+                                .on_click(move |checked, _window, cx| {
+                                    let _ = view_toggle.update_in(cx, |v, window, cx| {
+                                        let _ = checked;
+                                        v.toggle_personal_todo(window, &id_toggle, cx)
+                                    });
+                                }),
+                        )
+                        .child(div().flex_1())
+                        .child(
+                            Button::new(SharedString::from(format!("todo-del-{id}")))
+                                .icon(IconName::Trash)
+                                .tooltip(self.t("hub.delete"))
+                                .compact()
+                                .ghost()
+                                .on_click(move |_, _window, cx| {
+                                    let _ = view_delete.update_in(cx, |v, window, cx| {
+                                        v.delete_personal_todo(window, &id_delete, cx)
+                                    });
+                                }),
+                        ),
+                ),
             );
         }
-        list = list.child(self.section_header(self.t("todos.shared"), cx));
+        list = list.child(self.section(IconName::Users, self.t("todos.shared"), cx));
         for todo in shared.iter().take(30) {
             let id = todo.id.clone();
-            let _id_toggle = id.clone();
             let done = todo.completed_at.is_some();
             let view_click = view.clone();
             list = list.child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_2()
-                    .child(
-                        div()
-                            .flex_1()
-                            .text_size(px(13.))
-                            .text_color(if done {
-                                theme.colors.muted_foreground
-                            } else {
-                                theme.colors.foreground
-                            })
-                            .child(if done {
-                                format!("✓ {}", todo.title)
-                            } else {
-                                todo.title.clone()
-                            }),
-                    )
-                    .child(
-                        Button::new(SharedString::from(format!("shared-toggle-{}", id)))
-                            .label(if done { "↩" } else { "✓" })
-                            .on_click(move |_, _window, cx| {
-                                let id = id.clone();
-                                let _ = view_click.update_in(cx, |v, window, cx| {
-                                    v.toggle_shared_todo(window, id, done, cx)
-                                });
-                            }),
-                    ),
+                self.card(cx).child(
+                    gpui_kit::base::h_flex()
+                        .w_full()
+                        .items_center()
+                        .gap_2()
+                        .child(
+                            Checkbox::new(SharedString::from(format!("shared-todo-{id}")))
+                                .checked(done)
+                                .label(SharedString::from(todo.title.clone()))
+                                .on_click(move |_, _window, cx| {
+                                    let id = id.clone();
+                                    let _ = view_click.update_in(cx, |v, window, cx| {
+                                        v.toggle_shared_todo(window, id, done, cx)
+                                    });
+                                }),
+                        )
+                        .child(div().flex_1()),
+                ),
             );
+        }
+        if empty {
+            list = list.items_center().justify_center().child(self.empty_state(
+                IconName::ListTodo,
+                self.t("todos.empty"),
+                self.t("todos.empty_hint"),
+                cx,
+            ));
         }
         v_flex()
             .flex_1()
             .gap_2()
             .p_2()
-            .child(div().child(Input::new(&input)))
             .child(
-                div()
+                self.card(cx)
                     .flex()
+                    .flex_col()
                     .gap_2()
+                    .child(div().child(Input::new(&input)))
                     .child(
-                        Button::new("todo-add-personal")
-                            .label(self.t("todos.add"))
-                            .on_click({
-                                let view = view.clone();
-                                move |_, _, cx| {
-                                    let _ = view.update_in(cx, |view, window, cx| {
-                                        view.add_personal_todo(window, cx)
-                                    });
-                                }
-                            }),
-                    )
-                    .child(
-                        Button::new("todo-add-shared")
-                            .label(if zh {
-                                "添加共享待办"
-                            } else {
-                                "Add shared"
-                            })
-                            .on_click({
-                                let view = view.clone();
-                                move |_, _, cx| {
-                                    let _ = view.update_in(cx, |view, window, cx| {
-                                        view.add_shared_todo(window, cx)
-                                    });
-                                }
-                            }),
+                        gpui_kit::base::h_flex()
+                            .w_full()
+                            .gap_2()
+                            .child(
+                                Button::new("todo-add-personal")
+                                    .label(self.t("todos.add"))
+                                    .icon(IconName::Plus)
+                                    .on_click({
+                                        let view = view.clone();
+                                        move |_, _, cx| {
+                                            let _ = view.update_in(cx, |view, window, cx| {
+                                                view.add_personal_todo(window, cx)
+                                            });
+                                        }
+                                    }),
+                            )
+                            .child(
+                                Button::new("todo-add-shared")
+                                    .label(self.t("todos.add_shared"))
+                                    .icon(IconName::Users)
+                                    .outline()
+                                    .on_click({
+                                        let view = view.clone();
+                                        move |_, _, cx| {
+                                            let _ = view.update_in(cx, |view, window, cx| {
+                                                view.add_shared_todo(window, cx)
+                                            });
+                                        }
+                                    }),
+                            ),
                     ),
             )
             .child(
@@ -1250,7 +1787,7 @@ impl HubView {
     }
 
     fn render_notes(&mut self, cx: &mut Context<Self>) -> AnyElement {
-        let _theme = cx.theme().clone();
+        let theme = cx.theme().clone();
         let personal = self.core.notes_store.load();
         let shared = self
             .core
@@ -1260,132 +1797,200 @@ impl HubView {
             .unwrap_or_default();
         let input = self.note_input.clone();
         let view = cx.entity().downgrade();
-        let zh = self.language() == "zh-CN";
-        let mut rows = v_flex().gap_1();
-        rows = rows.child(self.section_header(self.t("notes.personal"), cx));
+        let empty = personal.notes.is_empty() && shared.is_empty();
+        let mut rows = v_flex().flex_1().gap_1p5();
+        rows = rows.child(self.section(IconName::StickyNote, self.t("notes.personal"), cx));
         for note in personal.notes.iter().take(20) {
             let id = note.id.clone();
             let view_select = view.clone();
             let selected = self.personal_note_selected.as_ref() == Some(&note.id);
             rows = rows.child(
-                Button::new(SharedString::from(format!("pnote-{}", id)))
-                    .label(note.content.chars().take(18).collect::<String>())
-                    .when(selected, |button| button.outline())
-                    .on_click(move |_, _, cx| {
-                        let id = id.clone();
-                        let _ = view_select.update_in(cx, |v, window, cx| {
-                            v.personal_note_selected = Some(id.clone());
-                            if let Some(content) = v
-                                .core
-                                .notes_store
-                                .load()
-                                .notes
-                                .iter()
-                                .find(|n| n.id == id)
-                                .map(|n| n.content.clone())
-                            {
-                                v.note_input
-                                    .update(cx, |state, cx| state.set_value(content, window, cx));
-                            }
-                        });
-                    }),
+                self.card(cx)
+                    .when(selected, |card| {
+                        card.border_color(theme.colors.primary)
+                            .bg(theme.colors.accent)
+                    })
+                    .child(
+                        gpui_kit::base::h_flex()
+                            .id(SharedString::from(format!("pnote-{id}")))
+                            .w_full()
+                            .items_center()
+                            .gap_2()
+                            .cursor_pointer()
+                            .on_click(move |_, _, cx| {
+                                let id = id.clone();
+                                let _ = view_select.update_in(cx, |v, window, cx| {
+                                    v.personal_note_selected = Some(id.clone());
+                                    if let Some(content) = v
+                                        .core
+                                        .notes_store
+                                        .load()
+                                        .notes
+                                        .iter()
+                                        .find(|n| n.id == id)
+                                        .map(|n| n.content.clone())
+                                    {
+                                        v.note_input.update(cx, |state, cx| {
+                                            state.set_value(content, window, cx)
+                                        });
+                                    }
+                                });
+                            })
+                            .child(
+                                Icon::new(if selected {
+                                    IconName::Pencil
+                                } else {
+                                    IconName::StickyNote
+                                })
+                                .with_size(Size::Small)
+                                .text_color(theme.colors.muted_foreground),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .text_size(theme.typography_tokens().sm.size)
+                                    .text_color(theme.colors.foreground)
+                                    .child(note.content.chars().take(24).collect::<String>()),
+                            ),
+                    ),
             );
         }
-        rows = rows.child(self.section_header(self.t("notes.shared"), cx));
+        rows = rows.child(self.section(IconName::Users, self.t("notes.shared"), cx));
         for note in shared.iter().take(20) {
             let id = note.id.clone();
             let view_select = view.clone();
             let selected = self.shared_note_selected.as_ref() == Some(&note.id);
             rows = rows.child(
-                Button::new(SharedString::from(format!("snote-{}", id)))
-                    .label(format!(
-                        "{} (rev {})",
-                        note.content.chars().take(14).collect::<String>(),
-                        note.revision
-                    ))
-                    .when(selected, |button| button.outline())
-                    .on_click(move |_, _, cx| {
-                        let id = id.clone();
-                        let _ = view_select.update_in(cx, |v, window, cx| {
-                            v.shared_note_selected = Some(id.clone());
-                            if let Some(content) = v
-                                .core
-                                .engine
-                                .state
-                                .read(|s| {
-                                    s.shared_notes
-                                        .iter()
-                                        .find(|n| n.id == id)
-                                        .map(|n| n.content.clone())
-                                })
-                                .flatten()
-                            {
-                                v.note_input
-                                    .update(cx, |state, cx| state.set_value(content, window, cx));
-                            }
-                        });
-                    }),
+                self.card(cx)
+                    .when(selected, |card| {
+                        card.border_color(theme.colors.primary)
+                            .bg(theme.colors.accent)
+                    })
+                    .child(
+                        gpui_kit::base::h_flex()
+                            .id(SharedString::from(format!("snote-{id}")))
+                            .w_full()
+                            .items_center()
+                            .gap_2()
+                            .cursor_pointer()
+                            .on_click(move |_, _, cx| {
+                                let id = id.clone();
+                                let _ = view_select.update_in(cx, |v, window, cx| {
+                                    v.shared_note_selected = Some(id.clone());
+                                    if let Some(content) = v
+                                        .core
+                                        .engine
+                                        .state
+                                        .read(|s| {
+                                            s.shared_notes
+                                                .iter()
+                                                .find(|n| n.id == id)
+                                                .map(|n| n.content.clone())
+                                        })
+                                        .flatten()
+                                    {
+                                        v.note_input.update(cx, |state, cx| {
+                                            state.set_value(content, window, cx)
+                                        });
+                                    }
+                                });
+                            })
+                            .child(
+                                Icon::new(IconName::Users)
+                                    .with_size(Size::Small)
+                                    .text_color(theme.colors.muted_foreground),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .text_size(theme.typography_tokens().sm.size)
+                                    .text_color(theme.colors.foreground)
+                                    .child(note.content.chars().take(20).collect::<String>()),
+                            )
+                            .child(self.pill(format!("rev {}", note.revision), false, cx)),
+                    ),
             );
+        }
+        if empty {
+            rows = rows.items_center().justify_center().child(self.empty_state(
+                IconName::StickyNote,
+                self.t("notes.empty"),
+                self.t("notes.empty_hint"),
+                cx,
+            ));
         }
         v_flex()
             .flex_1()
             .gap_2()
             .p_2()
             .child(
-                div()
+                self.card(cx)
                     .flex()
+                    .flex_col()
                     .gap_2()
-                    .flex_wrap()
+                    .child(div().child(Input::new(&input)))
                     .child(
-                        Button::new("pnote-add")
-                            .label(self.t("notes.add"))
-                            .on_click({
-                                let view = view.clone();
-                                move |_, _, cx| {
-                                    let _ = view.update_in(cx, |view, window, cx| {
-                                        view.add_personal_note(window, cx)
-                                    });
-                                }
-                            }),
-                    )
-                    .child(
-                        Button::new("pnote-save")
-                            .label(if zh { "保存个人" } else { "Save personal" })
-                            .on_click({
-                                let view = view.clone();
-                                move |_, _, cx| {
-                                    let _ = view.update_in(cx, |view, window, cx| {
-                                        view.save_personal_note(window, cx)
-                                    });
-                                }
-                            }),
-                    )
-                    .child(
-                        Button::new("snote-add")
-                            .label(if zh { "新建共享" } else { "New shared" })
-                            .on_click({
-                                let view = view.clone();
-                                move |_, _, cx| {
-                                    let _ = view.update_in(cx, |view, window, cx| {
-                                        view.add_shared_note(window, cx)
-                                    });
-                                }
-                            }),
-                    )
-                    .child(
-                        Button::new("snote-save")
-                            .label(if zh { "保存共享" } else { "Save shared" })
-                            .on_click({
-                                let view = view.clone();
-                                move |_, _, cx| {
-                                    let _ = view.update_in(cx, |view, window, cx| {
-                                        view.save_shared_note(window, cx)
-                                    });
-                                }
-                            }),
+                        gpui_kit::base::h_flex()
+                            .w_full()
+                            .gap_2()
+                            .flex_wrap()
+                            .child(
+                                Button::new("pnote-add")
+                                    .label(self.t("notes.add"))
+                                    .icon(IconName::Plus)
+                                    .on_click({
+                                        let view = view.clone();
+                                        move |_, _, cx| {
+                                            let _ = view.update_in(cx, |view, window, cx| {
+                                                view.add_personal_note(window, cx)
+                                            });
+                                        }
+                                    }),
+                            )
+                            .child(
+                                Button::new("pnote-save")
+                                    .label(self.t("notes.save_personal"))
+                                    .outline()
+                                    .on_click({
+                                        let view = view.clone();
+                                        move |_, _, cx| {
+                                            let _ = view.update_in(cx, |view, window, cx| {
+                                                view.save_personal_note(window, cx)
+                                            });
+                                        }
+                                    }),
+                            )
+                            .child(
+                                Button::new("snote-add")
+                                    .label(self.t("notes.new_shared"))
+                                    .icon(IconName::Users)
+                                    .outline()
+                                    .on_click({
+                                        let view = view.clone();
+                                        move |_, _, cx| {
+                                            let _ = view.update_in(cx, |view, window, cx| {
+                                                view.add_shared_note(window, cx)
+                                            });
+                                        }
+                                    }),
+                            )
+                            .child(
+                                Button::new("snote-save")
+                                    .label(self.t("notes.save_shared"))
+                                    .outline()
+                                    .on_click({
+                                        let view = view.clone();
+                                        move |_, _, cx| {
+                                            let _ = view.update_in(cx, |view, window, cx| {
+                                                view.save_shared_note(window, cx)
+                                            });
+                                        }
+                                    }),
+                            ),
                     ),
             )
-            .child(div().child(Input::new(&input)))
             .child(
                 div()
                     .id("note-list")
@@ -1409,104 +2014,172 @@ impl HubView {
         let name_input = self.anniversary_name_input.clone();
         let date_input = self.anniversary_date_input.clone();
         let view = cx.entity().downgrade();
-        let zh = self.language() == "zh-CN";
-        let mut rows = v_flex().gap_1();
-        rows = rows.child(self.section_header(self.t("notes.personal"), cx));
+        let empty = personal.anniversaries.is_empty() && shared.is_empty();
+        let mut rows = v_flex().flex_1().gap_1p5();
+        rows = rows.child(self.section(IconName::Heart, self.t("days.personal"), cx));
         for item in personal.anniversaries.iter().take(20) {
-            let days = clock::anniversary_days(&item.date, item.repeat_yearly, &now).unwrap_or(0);
-            rows = rows.child(
-                div()
-                    .flex()
-                    .justify_between()
-                    .child(div().text_size(px(13.)).child(item.name.clone()))
-                    .child(
-                        div()
-                            .text_size(px(12.))
-                            .text_color(theme.colors.muted_foreground)
-                            .child(format!(
-                                "{} · {} {}",
-                                item.date,
-                                days.abs(),
-                                self.t("days.days_left")
-                            )),
-                    ),
-            );
+            rows = rows.child(self.anniversary_row(
+                &item.name,
+                &item.date,
+                item.repeat_yearly,
+                &now,
+                cx,
+            ));
         }
-        rows = rows.child(self.section_header(self.t("notes.shared"), cx));
+        rows = rows.child(self.section(IconName::Users, self.t("days.shared"), cx));
         for item in shared.iter().take(20) {
-            let days = clock::anniversary_days(&item.date, item.repeat_yearly, &now).unwrap_or(0);
-            rows = rows.child(
-                div()
-                    .flex()
-                    .justify_between()
-                    .child(div().text_size(px(13.)).child(item.name.clone()))
-                    .child(
-                        div()
-                            .text_size(px(12.))
-                            .text_color(theme.colors.muted_foreground)
-                            .child(format!(
-                                "{} · {} {}",
-                                item.date,
-                                days.abs(),
-                                self.t("days.days_left")
-                            )),
-                    ),
-            );
+            rows = rows.child(self.anniversary_row(
+                &item.name,
+                &item.date,
+                item.repeat_yearly,
+                &now,
+                cx,
+            ));
+        }
+        if empty {
+            rows = rows.items_center().justify_center().child(self.empty_state(
+                IconName::CalendarHeart,
+                self.t("days.empty"),
+                self.t("days.empty_hint"),
+                cx,
+            ));
         }
         v_flex()
             .flex_1()
             .gap_2()
             .p_2()
             .child(
-                div()
+                self.card(cx)
                     .flex()
+                    .flex_col()
                     .gap_2()
-                    .child(div().flex_1().child(Input::new(&name_input)))
-                    .child(div().w(px(96.)).child(Input::new(&date_input))),
-            )
-            .child(
-                div()
-                    .flex()
-                    .gap_2()
+                    .child(self.section(IconName::CalendarHeart, self.t("days.add"), cx))
                     .child(
-                        Button::new("ann-add-personal")
-                            .label(self.t("notes.personal"))
-                            .on_click({
-                                let view = view.clone();
-                                move |_, _, cx| {
-                                    let _ = view.update_in(cx, |v, window, cx| {
-                                        v.add_anniversary(window, false, cx)
-                                    });
-                                }
-                            }),
+                        gpui_kit::base::h_flex()
+                            .w_full()
+                            .gap_2()
+                            .child(div().flex_1().min_w_0().child(Input::new(&name_input)))
+                            .child(div().w(px(110.)).child(Input::new(&date_input))),
                     )
                     .child(
-                        Button::new("ann-add-shared")
-                            .label(self.t("notes.shared"))
-                            .on_click({
-                                let view = view.clone();
-                                move |_, _, cx| {
-                                    let _ = view.update_in(cx, |v, window, cx| {
-                                        v.add_anniversary(window, true, cx)
-                                    });
-                                }
-                            }),
+                        gpui_kit::base::h_flex()
+                            .w_full()
+                            .gap_2()
+                            .child(
+                                Button::new("ann-add-personal")
+                                    .label(self.t("days.add_personal"))
+                                    .icon(IconName::Plus)
+                                    .on_click({
+                                        let view = view.clone();
+                                        move |_, _, cx| {
+                                            let _ = view.update_in(cx, |v, window, cx| {
+                                                v.add_anniversary(window, false, cx)
+                                            });
+                                        }
+                                    }),
+                            )
+                            .child(
+                                Button::new("ann-add-shared")
+                                    .label(self.t("days.add_shared"))
+                                    .icon(IconName::Users)
+                                    .outline()
+                                    .on_click({
+                                        let view = view.clone();
+                                        move |_, _, cx| {
+                                            let _ = view.update_in(cx, |v, window, cx| {
+                                                v.add_anniversary(window, true, cx)
+                                            });
+                                        }
+                                    }),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .text_size(theme.typography_tokens().xs.size)
+                            .text_color(theme.colors.muted_foreground)
+                            .child(self.t("days.format_hint")),
                     ),
             )
-            .when(zh, |panel| {
-                panel.child(
-                    div()
-                        .text_size(px(11.))
-                        .text_color(theme.colors.muted_foreground)
-                        .child("日期格式：2025-05-20"),
-                )
-            })
             .child(
                 div()
                     .id("ann-list")
                     .flex_1()
                     .overflow_y_scroll()
                     .child(rows),
+            )
+            .into_any_element()
+    }
+
+    /// One anniversary: the name, the date, and how far away it is.
+    ///
+    /// The countdown is a filled pill when the date has arrived or is close,
+    /// so a birthday this week stands out from one six months out.
+    fn anniversary_row(
+        &self,
+        name: &str,
+        date: &str,
+        repeat_yearly: bool,
+        now: &jiff::Zoned,
+        cx: &Context<Self>,
+    ) -> AnyElement {
+        let theme = cx.theme();
+        let days = clock::anniversary_days(date, repeat_yearly, now).unwrap_or(0);
+        let soon = days.abs() <= 7;
+        self.card(cx)
+            .child(
+                gpui_kit::base::h_flex()
+                    .w_full()
+                    .items_center()
+                    .gap_2()
+                    .child(
+                        Icon::new(if soon {
+                            IconName::PartyPopper
+                        } else {
+                            IconName::CalendarHeart
+                        })
+                        .with_size(Size::Small)
+                        .text_color(if soon {
+                            theme.colors.primary
+                        } else {
+                            theme.colors.muted_foreground
+                        }),
+                    )
+                    .child(
+                        v_flex()
+                            .flex_1()
+                            .min_w_0()
+                            .gap_0p5()
+                            .child(
+                                div()
+                                    .text_size(theme.typography_tokens().sm.size)
+                                    .text_color(theme.colors.foreground)
+                                    .child(name.to_string()),
+                            )
+                            .child(
+                                div()
+                                    .text_size(theme.typography_tokens().xs.size)
+                                    .text_color(theme.colors.muted_foreground)
+                                    .child(date.to_string()),
+                            ),
+                    )
+                    .child(
+                        // "in 12 days" / "12 days ago" reads better than a
+                        // signed number.
+                        self.pill(
+                            if days >= 0 {
+                                format!(
+                                    "{} {} {}",
+                                    self.t("days.in"),
+                                    days,
+                                    self.t("days.days_left")
+                                )
+                            } else {
+                                format!("{} {}", days.abs(), self.t("days.ago"))
+                            },
+                            soon,
+                            cx,
+                        ),
+                    ),
             )
             .into_any_element()
     }
@@ -1518,82 +2191,161 @@ impl HubView {
         let title_input = self.alarm_title_input.clone();
         let time_input = self.alarm_time_input.clone();
         let view = cx.entity().downgrade();
-        let zh = self.language() == "zh-CN";
-        let mut rows = v_flex().gap_1();
+        let empty = alarms.alarms.is_empty();
+        let mut rows = v_flex().flex_1().gap_1p5();
         for alarm in alarms.alarms.iter().take(30) {
             let id = alarm.id.clone();
-            let id_toggle = id.clone();
-            let id_delete = id.clone();
             let view_toggle = view.clone();
             let view_delete = view.clone();
+            let id_toggle = id.clone();
+            let id_delete = id.clone();
             let next = clock::next_trigger(alarm, &now)
                 .map(|t| clock::format_time(&t, true))
                 .unwrap_or_else(|| "—".to_string());
+            let repeat = match &alarm.repeat {
+                AlarmRepeat::Once(date) => format!("{} {date}", self.t("alarms.once")),
+                AlarmRepeat::Daily => self.t("alarms.daily").to_string(),
+                AlarmRepeat::Weekdays(days) if days.is_empty() => {
+                    self.t("alarms.daily").to_string()
+                }
+                AlarmRepeat::Weekdays(days) => {
+                    let language = self.language();
+                    days.iter()
+                        .filter_map(|day| {
+                            let key = format!("weekday.{day}");
+                            let name = text(&language, &key);
+                            (!name.is_empty()).then(|| name.to_string())
+                        })
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                }
+            };
             rows = rows.child(
-                div()
-                    .flex()
-                    .items_center()
-                    .gap_2()
+                self.card(cx)
+                    .when(!alarm.enabled, |card| card.bg(theme.colors.muted))
                     .child(
-                        div()
-                            .flex_1()
-                            .text_size(px(13.))
-                            .text_color(if alarm.enabled {
-                                theme.colors.foreground
-                            } else {
-                                theme.colors.muted_foreground
-                            })
-                            .child(format!(
-                                "{} {} · {} → {}",
-                                if alarm.enabled { "🔔" } else { "🔕" },
-                                alarm.title,
-                                alarm.time,
-                                next
-                            )),
-                    )
-                    .child(
-                        Button::new(SharedString::from(format!("alarm-toggle-{}", id_toggle)))
-                            .label(if zh {
-                                if alarm.enabled { "停用" } else { "启用" }
-                            } else if alarm.enabled {
-                                "Off"
-                            } else {
-                                "On"
-                            })
-                            .on_click(move |_, _window, cx| {
-                                let _ = view_toggle.update_in(cx, |v, window, cx| {
-                                    v.toggle_alarm(window, &id_toggle, cx)
-                                });
-                            }),
-                    )
-                    .child(
-                        Button::new(SharedString::from(format!("alarm-del-{}", id_delete)))
-                            .label("✕")
-                            .on_click(move |_, _, cx| {
-                                let id = id.clone();
-                                let _ = view_delete
-                                    .update_in(cx, |v, window, cx| v.delete_alarm(window, &id, cx));
-                            }),
+                        gpui_kit::base::h_flex()
+                            .w_full()
+                            .items_center()
+                            .gap_3()
+                            .child(
+                                Icon::new(if alarm.enabled {
+                                    IconName::BellRing
+                                } else {
+                                    IconName::Bell
+                                })
+                                .with_size(Size::Medium)
+                                .text_color(if alarm.enabled {
+                                    theme.colors.primary
+                                } else {
+                                    theme.colors.muted_foreground
+                                }),
+                            )
+                            .child(
+                                v_flex()
+                                    .flex_1()
+                                    .min_w_0()
+                                    .gap_0p5()
+                                    .child(
+                                        gpui_kit::base::h_flex()
+                                            .items_baseline()
+                                            .gap_2()
+                                            .child(
+                                                // The time is the thing the
+                                                // user is scanning for, so it
+                                                // is the largest type on the
+                                                // card and the title rides
+                                                // along as a caption.
+                                                div()
+                                                    .text_size(px(20.))
+                                                    .font_weight(FontWeight::SEMIBOLD)
+                                                    .text_color(if alarm.enabled {
+                                                        theme.colors.foreground
+                                                    } else {
+                                                        theme.colors.muted_foreground
+                                                    })
+                                                    .child(alarm.time.clone()),
+                                            )
+                                            .child(
+                                                div()
+                                                    .text_size(theme.typography_tokens().sm.size)
+                                                    .text_color(theme.colors.foreground)
+                                                    .child(alarm.title.clone()),
+                                            ),
+                                    )
+                                    .child(
+                                        div()
+                                            .text_size(theme.typography_tokens().xs.size)
+                                            .text_color(theme.colors.muted_foreground)
+                                            .child(format!(
+                                                "{repeat} · {} {next}",
+                                                self.t("alarms.next")
+                                            )),
+                                    ),
+                            )
+                            .child(
+                                Switch::new(SharedString::from(format!("alarm-{id}")))
+                                    .checked(alarm.enabled)
+                                    .tooltip(if alarm.enabled {
+                                        self.t("alarms.disable")
+                                    } else {
+                                        self.t("alarms.enable")
+                                    })
+                                    .on_click(move |_, _window, cx| {
+                                        let _ = view_toggle.update_in(cx, |v, window, cx| {
+                                            v.toggle_alarm(window, &id_toggle, cx)
+                                        });
+                                    }),
+                            )
+                            .child(
+                                Button::new(SharedString::from(format!("alarm-del-{id}")))
+                                    .icon(IconName::Trash)
+                                    .tooltip(self.t("hub.delete"))
+                                    .compact()
+                                    .ghost()
+                                    .on_click(move |_, _, cx| {
+                                        let _ = view_delete.update_in(cx, |v, window, cx| {
+                                            v.delete_alarm(window, &id_delete, cx)
+                                        });
+                                    }),
+                            ),
                     ),
             );
+        }
+        if empty {
+            rows = rows.items_center().justify_center().child(self.empty_state(
+                IconName::AlarmClock,
+                self.t("alarms.empty"),
+                self.t("alarms.empty_hint"),
+                cx,
+            ));
         }
         v_flex()
             .flex_1()
             .gap_2()
             .p_2()
             .child(
-                div()
+                self.card(cx)
                     .flex()
+                    .flex_col()
                     .gap_2()
-                    .child(div().flex_1().child(Input::new(&title_input)))
-                    .child(div().w(px(88.)).child(Input::new(&time_input))),
-            )
-            .child(
-                Button::new("alarm-add")
-                    .label(self.t("alarms.add"))
-                    .on_click(move |_, _, cx| {
-                        let _ = view.update_in(cx, |view, window, cx| view.add_alarm(window, cx));
-                    }),
+                    .child(self.section(IconName::AlarmClock, self.t("alarms.add"), cx))
+                    .child(
+                        gpui_kit::base::h_flex()
+                            .w_full()
+                            .gap_2()
+                            .child(div().flex_1().min_w_0().child(Input::new(&title_input)))
+                            .child(div().w(px(104.)).child(Input::new(&time_input))),
+                    )
+                    .child(
+                        Button::new("alarm-add")
+                            .label(self.t("alarms.add"))
+                            .icon(IconName::Plus)
+                            .on_click(move |_, _, cx| {
+                                let _ = view
+                                    .update_in(cx, |view, window, cx| view.add_alarm(window, cx));
+                            }),
+                    ),
             )
             .child(
                 div()
@@ -1609,12 +2361,6 @@ impl HubView {
         let theme = cx.theme().clone();
         let account = self.core.account_store.load();
         let partner = self.core.engine.state.read(|s| s.partner.clone()).flatten();
-        let relation = self
-            .core
-            .engine
-            .state
-            .read(|s| s.relation.clone())
-            .flatten();
         let status = self.core.status_text();
         let zh = self.language() == "zh-CN";
         let server_input = self.server_input.clone();
@@ -1622,70 +2368,82 @@ impl HubView {
         let password_input = self.password_input.clone();
         let invite_input = self.invite_input.clone();
         let view = cx.entity().downgrade();
-        let _core = Arc::clone(&self.core);
+        let signed_in = !account.token.is_empty();
 
-        let mut panel = v_flex().flex_1().gap_2();
-        panel = panel
-            .child(self.section_header(self.t("settings.account"), cx))
-            .child(
-                div()
-                    .text_size(px(12.))
-                    .text_color(theme.colors.muted_foreground)
-                    .child(if account.username.is_empty() {
-                        status
-                    } else {
-                        format!("{} · {}", account.display_name, status)
-                    }),
-            );
-        if account.token.is_empty() {
-            panel = panel
-                .child(div().child(Input::new(&server_input)))
+        // Account: who the pet belongs to, and the sign-in or pair-up actions
+        // that go with that identity.
+        let mut account_card = self.card(cx).gap_2().child(self.section(
+            IconName::CircleUser,
+            self.t("settings.account"),
+            cx,
+        ));
+        let who = if account.display_name.is_empty() {
+            self.t("settings.no_account").to_string()
+        } else {
+            account.display_name.clone()
+        };
+        account_card = account_card.child(
+            gpui_kit::base::h_flex()
+                .w_full()
+                .items_center()
+                .gap_2()
                 .child(
-                    div()
-                        .flex()
-                        .gap_2()
-                        .child(div().flex_1().child(Input::new(&username_input)))
-                        .child(div().flex_1().child(Input::new(&password_input))),
+                    Avatar::new()
+                        .name(who.clone())
+                        .with_size(Size::Small)
+                        .when(signed_in, |avatar| avatar.src(PORTRAIT)),
                 )
                 .child(
-                    div()
-                        .flex()
-                        .gap_2()
+                    v_flex()
+                        .flex_1()
+                        .min_w_0()
+                        .gap_0p5()
                         .child(
-                            Button::new("register")
-                                .label(self.t("settings.register"))
-                                .on_click({
-                                    let view = view.clone();
-                                    move |_, _, cx| {
-                                        let _ = view.update_in(cx, |v, _window, cx| {
-                                            v.spawn_account_op(AccountOp::Register, cx)
-                                        });
-                                    }
-                                }),
+                            div()
+                                .text_size(theme.typography_tokens().sm.size)
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(theme.colors.foreground)
+                                .child(who),
                         )
                         .child(
-                            Button::new("login")
-                                .label(self.t("settings.login"))
+                            div()
+                                .text_size(theme.typography_tokens().xs.size)
+                                .text_color(theme.colors.muted_foreground)
+                                .child(status),
+                        ),
+                ),
+        );
+        if signed_in {
+            account_card = account_card
+                .child(
+                    gpui_kit::base::h_flex()
+                        .w_full()
+                        .gap_2()
+                        .child(div().flex_1().min_w_0().child(Input::new(&invite_input)))
+                        .child(
+                            Button::new("invite-accept")
+                                .label(self.t("settings.accept_invite"))
+                                .icon(IconName::HeartHandshake)
                                 .on_click({
                                     let view = view.clone();
                                     move |_, _, cx| {
                                         let _ = view.update_in(cx, |v, _window, cx| {
-                                            v.spawn_account_op(AccountOp::Login, cx)
+                                            v.spawn_account_op(AccountOp::AcceptInvite, cx)
                                         });
                                     }
                                 }),
                         ),
-                );
-        } else {
-            panel = panel
+                )
                 .child(
-                    div()
-                        .flex()
-                        .gap_2()
+                    gpui_kit::base::h_flex()
+                        .w_full()
                         .flex_wrap()
+                        .gap_2()
                         .child(
                             Button::new("invite-create")
                                 .label(self.t("settings.invite_code"))
+                                .icon(IconName::Ticket)
+                                .outline()
                                 .on_click({
                                     let view = view.clone();
                                     move |_, _, cx| {
@@ -1698,6 +2456,8 @@ impl HubView {
                         .child(
                             Button::new("dissolve")
                                 .label(self.t("settings.dissolve"))
+                                .icon(IconName::HeartCrack)
+                                .outline()
                                 .on_click({
                                     let view = view.clone();
                                     move |_, _, cx| {
@@ -1710,6 +2470,8 @@ impl HubView {
                         .child(
                             Button::new("logout")
                                 .label(self.t("settings.logout"))
+                                .icon(IconName::LogOut)
+                                .ghost()
                                 .on_click({
                                     let view = view.clone();
                                     move |_, _, cx| {
@@ -1719,53 +2481,116 @@ impl HubView {
                                     }
                                 }),
                         ),
-                )
-                .child(div().child(Input::new(&invite_input)))
+                );
+        } else {
+            account_card = account_card
+                .child(div().child(Input::new(&server_input)))
                 .child(
-                    Button::new("invite-accept")
-                        .label(self.t("settings.accept_invite"))
+                    gpui_kit::base::h_flex()
+                        .w_full()
+                        .gap_2()
+                        .child(div().flex_1().min_w_0().child(Input::new(&username_input)))
+                        .child(div().flex_1().min_w_0().child(Input::new(&password_input))),
+                )
+                .child(
+                    gpui_kit::base::h_flex()
+                        .w_full()
+                        .gap_2()
+                        .child(
+                            Button::new("login")
+                                .label(self.t("settings.login"))
+                                .icon(IconName::LogIn)
+                                .on_click({
+                                    let view = view.clone();
+                                    move |_, _, cx| {
+                                        let _ = view.update_in(cx, |v, _window, cx| {
+                                            v.spawn_account_op(AccountOp::Login, cx)
+                                        });
+                                    }
+                                }),
+                        )
+                        .child(
+                            Button::new("register")
+                                .label(self.t("settings.register"))
+                                .icon(IconName::UserPlus)
+                                .outline()
+                                .on_click({
+                                    let view = view.clone();
+                                    move |_, _, cx| {
+                                        let _ = view.update_in(cx, |v, _window, cx| {
+                                            v.spawn_account_op(AccountOp::Register, cx)
+                                        });
+                                    }
+                                }),
+                        ),
+                );
+        }
+
+        // Partner: the other half of the product, and the one action that
+        // reaches them from the settings page.
+        let mut partner_card = self.card(cx).gap_2().child(self.section(
+            IconName::Users,
+            self.t("settings.partner"),
+            cx,
+        ));
+        partner_card = partner_card.child(match &partner {
+            Some(partner) => gpui_kit::base::h_flex()
+                .w_full()
+                .items_center()
+                .gap_2()
+                .child(
+                    Avatar::new()
+                        .name(partner.display_name.clone())
+                        .with_size(Size::Small),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w_0()
+                        .text_size(theme.typography_tokens().sm.size)
+                        .text_color(theme.colors.foreground)
+                        .child(partner.display_name.clone()),
+                )
+                .child(
+                    Button::new("poke-here")
+                        .label(self.t("tray.poke"))
+                        .icon(IconName::HandHeart)
+                        .outline()
                         .on_click({
                             let view = view.clone();
                             move |_, _, cx| {
-                                let _ = view.update_in(cx, |v, _window, cx| {
-                                    v.spawn_account_op(AccountOp::AcceptInvite, cx)
-                                });
+                                let _ = view
+                                    .update_in(cx, |view, window, cx| view.set_poke(window, cx));
                             }
                         }),
-                );
-        }
-        panel = panel
-            .child(self.section_header(self.t("settings.partner"), cx))
-            .child(div().text_size(px(12.)).child(match (&relation, &partner) {
-                (Some(_), Some(partner)) => partner.display_name.clone(),
-                _ => self.t("settings.no_partner").to_string(),
-            }))
-            .child(self.section_header(self.t("settings.language"), cx))
+                ),
+            None => div()
+                .text_size(theme.typography_tokens().sm.size)
+                .text_color(theme.colors.muted_foreground)
+                .child(self.t("settings.no_partner").to_string()),
+        });
+
+        // Preferences: language, plus the one promise about personal data.
+        let preferences = self
+            .card(cx)
+            .gap_2()
+            .child(self.section(IconName::Settings2, self.t("settings.language"), cx))
             .child(
-                div()
-                    .flex()
+                gpui_kit::base::h_flex()
+                    .w_full()
+                    .items_center()
                     .gap_2()
-                    .child(
-                        Button::new("poke-here")
-                            .label(self.t("tray.poke"))
-                            .on_click({
-                                let view = view.clone();
-                                move |_, _, cx| {
-                                    let _ = view.update_in(cx, |view, window, cx| {
-                                        view.set_poke(window, cx)
-                                    });
-                                }
-                            }),
-                    )
                     .child(
                         Button::new("lang-switch")
                             .label(if zh { "English" } else { "中文" })
+                            .icon(IconName::Languages)
+                            .outline()
                             .on_click({
                                 let view = view.clone();
                                 move |_, _, cx| {
-                                    let _ = view.update_in(cx, |v, _, cx| {
+                                    let _ = view.update_in(cx, |v, window, cx| {
                                         let language = if zh { "en" } else { "zh-CN" };
-                                        v.set_language(language, cx);
+                                        v.set_language(language, window, cx);
                                     });
                                     cx.refresh_windows();
                                 }
@@ -1773,16 +2598,36 @@ impl HubView {
                     ),
             )
             .child(
-                div()
-                    .text_size(px(11.))
-                    .text_color(theme.colors.muted_foreground)
-                    .child(if zh {
-                        "个人待办、个人便签与闹钟只保存在本地，不会同步给伴侣"
-                    } else {
-                        "Personal todos, notes and alarms stay on this device"
-                    }),
+                gpui_kit::base::h_flex()
+                    .w_full()
+                    .items_start()
+                    .gap_1p5()
+                    .child(
+                        Icon::new(IconName::Lock)
+                            .with_size(Size::Small)
+                            .text_color(theme.colors.muted_foreground),
+                    )
+                    .child(
+                        div()
+                            .flex_1()
+                            .min_w_0()
+                            .text_size(theme.typography_tokens().xs.size)
+                            .text_color(theme.colors.muted_foreground)
+                            .child(self.t("settings.local_hint").to_string()),
+                    ),
             );
-        panel.into_any_element()
+
+        v_flex()
+            .id("settings-scroll")
+            .flex_1()
+            .w_full()
+            .gap_2()
+            .p_3()
+            .overflow_y_scroll()
+            .child(account_card)
+            .child(partner_card)
+            .child(preferences)
+            .into_any_element()
     }
 }
 
@@ -1825,22 +2670,7 @@ fn save_account(
 
 impl gpui_kit::Render for HubView {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        let language = self.language();
-        let view = cx.entity().downgrade();
-        let mut bar = TabBar::new("hub-tabs")
-            .selected_index(self.tab.index())
-            .on_click(move |index: &usize, _, cx| {
-                let index = *index;
-                let _ = view.update(cx, |view, cx| {
-                    if let Some(tab) = TABS.get(index) {
-                        view.tab = *tab;
-                        cx.notify();
-                    }
-                });
-            });
-        for tab in TABS {
-            bar = bar.child(GpuiTab::new().label(tab.title(&language)));
-        }
+        let theme = cx.theme().clone();
         let content = match self.tab {
             HubTab::Chat => self.render_chat(cx),
             HubTab::Letters => self.render_letters(cx),
@@ -1854,8 +2684,9 @@ impl gpui_kit::Render for HubView {
         v_flex()
             .w_full()
             .h_full()
-            .bg(rgb(0xfff8f0))
-            .child(bar)
+            .bg(theme.colors.background)
+            .child(self.render_header(cx))
+            .child(self.render_tabs(cx))
             .child(content)
     }
 }
@@ -1886,5 +2717,85 @@ mod tests {
     #[test]
     fn a_gesture_without_a_live_window_opens_one() {
         assert_eq!(intent(HubGesture::Toggle, None), HubIntent::Open);
+    }
+
+    /// The stored name of a section is the same string in both places it is
+    /// written down: the `tab.<key>` label and the saved panel state. A typo in
+    /// either would send a returning user to the wrong section.
+    #[test]
+    fn every_section_round_trips_through_its_stored_name() {
+        for tab in TABS {
+            assert_eq!(HubTab::from_key(tab.key()), Some(tab));
+            assert!(
+                !text("zh-CN", &format!("tab.{}", tab.key())).is_empty()
+                    && !text("en", &format!("tab.{}", tab.key())).is_empty(),
+                "tab.{} has no label",
+                tab.key()
+            );
+        }
+        assert_eq!(HubTab::from_key("nope"), None);
+    }
+
+    /// Every label the panel draws resolves in both languages.
+    ///
+    /// A key that is missing or misspelled falls back to an empty string, so
+    /// the button or tab it belongs to renders blank instead of failing the
+    /// build. The keys are read out of this file's own literals — anything
+    /// shaped like `section.name` — so a new label is covered the moment it is
+    /// written, without a list to maintain.
+    #[test]
+    fn every_label_the_panel_writes_exists_in_both_languages() {
+        let source = include_str!("hub.rs");
+        let mut keys: Vec<&str> = source
+            .split('"')
+            .skip(1)
+            .step_by(2)
+            .filter(|literal| looks_like_a_key(literal))
+            .collect();
+        keys.sort_unstable();
+        keys.dedup();
+        assert!(
+            keys.len() >= 50,
+            "the scan found only {} keys, so it is no longer looking at the labels",
+            keys.len()
+        );
+        for key in keys {
+            for language in ["zh-CN", "en"] {
+                assert!(
+                    !text(language, key).is_empty(),
+                    "\"{key}\" has no {language} label"
+                );
+            }
+        }
+        for day in 0..7 {
+            let key = format!("weekday.{day}");
+            for language in ["zh-CN", "en"] {
+                assert!(
+                    !text(language, &key).is_empty(),
+                    "\"{key}\" has no {language} label"
+                );
+            }
+        }
+    }
+
+    /// A catalog key: `section.name`, lower case, no spaces or paths. Element
+    /// ids (`hub-tile-0`), sizes (`120`) and asset paths are not keys, and the
+    /// section has to be one the catalog actually has.
+    fn looks_like_a_key(literal: &str) -> bool {
+        const SECTIONS: [&str; 14] = [
+            "app", "tab", "tray", "chat", "letters", "focus", "todos", "notes", "days", "alarms",
+            "settings", "status", "notify", "weekday",
+        ];
+        let mut parts = literal.split('.');
+        let (Some(section), Some(name), None) = (parts.next(), parts.next(), parts.next()) else {
+            return false;
+        };
+        SECTIONS.contains(&section)
+            && [section, name].into_iter().all(|part| {
+                !part.is_empty()
+                    && part
+                        .chars()
+                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
+            })
     }
 }

@@ -35,6 +35,22 @@
 - [x] E5 共享待办/便签/纪念日面板 + 冲突提示（便签 revision 冲突 → 通知，不静默覆盖）
 - [x] E6 闹钟（jiff、DST、错过触发恢复、声音）+ 通知中心（节流/勿扰/历史）；提醒音为内嵌生成的 WAV，启动时 `Prepare` 一次（`bongocat-audio` 只播放已解码片段，否则 `Play` 静默失败），`insync-app` 有解码回归测试
 - [x] E7 设置面板（注册/登录/邀请码/绑定/解绑/登出/语言切换）+ 断线/过期状态提示
+- [x] E9 面板视觉重做（可爱化）：`insync-app::palette` 把桌宠精灵的奶油/暖褐/
+  玫瑰/蜜桃取色写成 gpui-kit `Theme`（浅色 cream + 深色 cocoa 两套独立调校，
+  含 27 条 WCAG 对比度断言），页头（吉祥物头像 + 配对状态）、8 个带图标的 tab
+  磁贴、「卡片 + 气泡 + 空态插图」的内容骨架全部改为读主题令牌。
+  迁移组件（依据 gpui-kit 官方文档 [components](https://gpui-kit.com/docs/components)
+  与 [docs.rs/gpui-kit](https://docs.rs/gpui-kit)，未凭记忆猜 API）：
+  `Button`（+`ButtonVariants`，默认/outline/ghost 三级）、`Avatar`、`Bubble`
+  （`BubbleVariant::Filled`）、`Checkbox`、`Switch`、`Input`/`InputState`、
+  `ProgressCircle`、`Empty`（`EmptyMedia`/`EmptyTitle`/`EmptyDescription`）、
+  `Icon`+`IconName`、`Root`、`Size`/`Sizable`、`ActiveTheme`。剩余特殊控件：无
+  （面板内没有自定义绘制控件）；自有的只剩布局组合 `card()`/`section()`。
+  图标逐个核对存在的 `IconName` 变体（解析生成的 `icon_name.rs`，18/18 命中）。
+  验证：`verify_panel.py --all` 对 8 个分区各截一次真实窗口（驱动真实「回到
+  上次分区」路径），断言选中磁贴正确、`stray_edge=0`（无裁切）；另测 400pt 与
+  最小 360pt 宽、浅/深两套调色板（正文对比度 6.9–8.5:1）。`insync-app` 23 个
+  测试通过、`cargo clippy -D warnings` 干净。
 
 ## Phase F — 交付
 
@@ -50,8 +66,8 @@
 
 ## 真实使用中发现并修复的缺陷（安装版人工试用）
 
-自动化测试与冒烟都覆盖不到「窗口是否真的在用户眼前」和「窗口背景是否透明」，
-这两条由使用者试用安装版后发现：
+自动化测试与冒烟都覆盖不到「窗口是否真的在用户眼前」「窗口背景是否透明」和
+「界面好不好看」，这三条由使用者试用安装版后发现：
 
 - [x] B4 桌宠背景不透明：macOS 后端只调了 `setOpaque(false)`，AppKit 仍会用
   `backgroundColor`（默认不透明的 `windowBackgroundColor`）填满窗口，桌宠因此站在
@@ -68,3 +84,19 @@
   窗口。验证：窗口服务器 z-order（面板 index 22 在 Zen 的 23 之前）、真实点击菜单项
   （已打开时不再关闭；关闭后再次点击会新建窗口并置前）、真实右键（两条分支）、回归
   测试 `hub::tests::*`（3 个）。
+- [x] E10 面板不好看（“面板有点丑”）：面板此前把奶油色硬编码在视图里，而组件
+  仍用 gpui-kit 默认的中性灰主题，于是暖色底上叠着灰色控件，主按钮的填充又被
+  调色板设成了白色而“消失”。修复分两层：产品调色板接管 `Theme`（见 E9），并按
+  库的 variant 语义把默认 `Button` 的填充改为玫瑰色（`Theme::update` 的
+  `reconcile` 会把 `colors` 的改动同步进组件令牌表，一处改动同时覆盖 `colors`
+  与 `tokens`）。同时补两条此前只有真实窗口才暴露的契约：面板窗口订阅自身
+  appearance 以跟随系统深浅色；面板停留分区写入 `window-state.json`
+  （`hub_tab`，`Option` + `serde(default)`，旧文件照常读取，见技术设计
+  「本地存储根」）。验证：`tools/insync-ui/verify_panel.py` 的像素测量（页头为
+  muted 底 + 吉祥物蜜桃/玫瑰色块、4×2 磁贴网格中选中磁贴 x=203..292 为玫瑰、
+  空态插图为静态裁切帧、主按钮 33.6% 玫瑰占比）、8 个分区截图的
+  `stray_edge=0`、最小 360×500pt 下磁贴文字仍在列内（最宽 120..152 落在
+  98..177）、`insync-app` 23 个测试通过（含旧 `window-state.json` 读取回归、
+  面板文案 i18n 键齐全、分区名往返）与 `clippy -D warnings` 干净。
+  **仍未验证**：审美本身需要人眼判断，本环境没有视觉可用的模型，只能给出上述
+  可测量证据。

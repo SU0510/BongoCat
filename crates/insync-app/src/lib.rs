@@ -7,6 +7,7 @@ pub mod clock;
 pub mod hub;
 pub mod i18n;
 pub mod notify;
+pub mod palette;
 pub mod pet;
 pub mod store;
 pub mod tray;

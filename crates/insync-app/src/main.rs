@@ -1,11 +1,9 @@
 //! InSync entry point: boots the core services, the pet window, the tray
 //! and the hub panel inside one GPUI application.
 
-use gpui_kit::{
-    App, Application as GpuiApplication, QuitMode, assets::AllAssets, platform::current_platform,
-};
+use gpui_kit::{App, Application as GpuiApplication, QuitMode, platform::current_platform};
 use insync_app::app::{Coordinator, tick_app};
-use insync_app::{app::AppCore, assets, hub, pet, tray};
+use insync_app::{app::AppCore, assets, hub, palette, pet, tray};
 use std::cell::RefCell;
 
 /// Startup and fatal errors go to stderr as single human-readable lines.
@@ -26,11 +24,14 @@ fn main() {
 
     GpuiApplication::new_inaccessible(current_platform(false))
         .with_quit_mode(QuitMode::Explicit)
-        .with_assets(AllAssets)
+        .with_assets(assets::InSyncAssets)
         .run(move |cx: &mut App| {
             if !cx.has_global::<gpui_kit::component::theme::Theme>() {
                 gpui_kit::init(cx);
             }
+            // The panel wears the pet's own colours from the first frame; every
+            // window re-installs the palette for its own appearance.
+            palette::install(cx);
             // tray installation needs a live NSApplication; keep it after
             // the GPUI platform is up (same order as BongoCat's tray). A tray
             // that cannot be installed takes every menu action with it, so the

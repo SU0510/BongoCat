@@ -418,6 +418,363 @@ pub fn text(language: &str, key: &str) -> &'static str {
                 "Focus complete!"
             }
         }
+        "settings.username" => {
+            if zh {
+                "用户名"
+            } else {
+                "Username"
+            }
+        }
+        "settings.password" => {
+            if zh {
+                "密码"
+            } else {
+                "Password"
+            }
+        }
+        "settings.no_account" => {
+            if zh {
+                "还没有登录"
+            } else {
+                "Not signed in"
+            }
+        }
+        "settings.local_hint" => {
+            if zh {
+                "个人待办、个人便签、纪念日和闹钟只保存在这台设备上，不会同步给对方。"
+            } else {
+                "Personal todos, notes, days and alarms stay on this device and are never sent to your partner."
+            }
+        }
+        "alarms.time" => {
+            if zh {
+                "时间 09:30"
+            } else {
+                "Time 09:30"
+            }
+        }
+        "chat.empty_hint" => {
+            if zh {
+                "说点什么，对方马上就收到"
+            } else {
+                "Say something and it lands right away"
+            }
+        }
+        "letters.empty_hint" => {
+            if zh {
+                "写几句悄悄话，对方下次打开就能看到"
+            } else {
+                "Leave a few words for your partner to find later"
+            }
+        }
+        "letters.from_me" => {
+            if zh {
+                "我写下的"
+            } else {
+                "From me"
+            }
+        }
+        "letters.from_partner" => {
+            if zh {
+                "对方写下的"
+            } else {
+                "From my partner"
+            }
+        }
+        "letters.unread" => {
+            if zh {
+                "新"
+            } else {
+                "New"
+            }
+        }
+        "letters.mark_read" => {
+            if zh {
+                "读过啦"
+            } else {
+                "Mark as read"
+            }
+        }
+        "focus.start" => {
+            if zh {
+                "开始专注"
+            } else {
+                "Start focus"
+            }
+        }
+        "focus.hint" => {
+            if zh {
+                "邀请伴侣一起专注，时间到了两边都会收到提醒"
+            } else {
+                "Invite your partner to focus too — you both get a nudge when time is up"
+            }
+        }
+        "focus.accept" => {
+            if zh {
+                "一起专注"
+            } else {
+                "Join"
+            }
+        }
+        "focus.decline" => {
+            if zh {
+                "下次吧"
+            } else {
+                "Not now"
+            }
+        }
+        "focus.invited" => {
+            if zh {
+                "对方邀请你一起专注"
+            } else {
+                "Your partner invited you to focus"
+            }
+        }
+        "focus.active" => {
+            if zh {
+                "正在专注"
+            } else {
+                "Focusing"
+            }
+        }
+        "focus.paused" => {
+            if zh {
+                "暂停中"
+            } else {
+                "Paused"
+            }
+        }
+        "focus.waiting_partner" => {
+            if zh {
+                "等对方接受邀请…"
+            } else {
+                "Waiting for your partner…"
+            }
+        }
+        "todos.empty" => {
+            if zh {
+                "还没有待办"
+            } else {
+                "Nothing on the list"
+            }
+        }
+        "todos.empty_hint" => {
+            if zh {
+                "写下第一件要做的事"
+            } else {
+                "Add the first thing to do"
+            }
+        }
+        "todos.add_shared" => {
+            if zh {
+                "添加共同待办"
+            } else {
+                "Add a shared todo"
+            }
+        }
+        "notes.empty" => {
+            if zh {
+                "还没有便签"
+            } else {
+                "No notes yet"
+            }
+        }
+        "notes.empty_hint" => {
+            if zh {
+                "记下想留住的小事"
+            } else {
+                "Jot down something worth keeping"
+            }
+        }
+        "notes.new_shared" => {
+            if zh {
+                "新建共同便签"
+            } else {
+                "New shared note"
+            }
+        }
+        "notes.save_personal" => {
+            if zh {
+                "保存"
+            } else {
+                "Save"
+            }
+        }
+        "notes.save_shared" => {
+            if zh {
+                "保存并分享"
+            } else {
+                "Save and share"
+            }
+        }
+        "days.personal" => {
+            if zh {
+                "我的纪念日"
+            } else {
+                "My days"
+            }
+        }
+        "days.shared" => {
+            if zh {
+                "我们的纪念日"
+            } else {
+                "Our days"
+            }
+        }
+        "days.empty" => {
+            if zh {
+                "还没有纪念日"
+            } else {
+                "No days yet"
+            }
+        }
+        "days.empty_hint" => {
+            if zh {
+                "记下在一起的日子"
+            } else {
+                "Remember a day that matters"
+            }
+        }
+        "days.add_personal" => {
+            if zh {
+                "添加纪念日"
+            } else {
+                "Add a day"
+            }
+        }
+        "days.add_shared" => {
+            if zh {
+                "添加共同纪念日"
+            } else {
+                "Add a shared day"
+            }
+        }
+        "days.format_hint" => {
+            if zh {
+                "日期格式 2000-01-31"
+            } else {
+                "Date format 2000-01-31"
+            }
+        }
+        "days.in" => {
+            if zh {
+                "还有"
+            } else {
+                "in"
+            }
+        }
+        "days.ago" => {
+            if zh {
+                "天前"
+            } else {
+                "days ago"
+            }
+        }
+        "alarms.empty" => {
+            if zh {
+                "还没有闹钟"
+            } else {
+                "No alarms yet"
+            }
+        }
+        "alarms.empty_hint" => {
+            if zh {
+                "设一个时间，到点宠物会叫你"
+            } else {
+                "Set a time and the pet will call you"
+            }
+        }
+        "alarms.enable" => {
+            if zh {
+                "打开"
+            } else {
+                "Enable"
+            }
+        }
+        "alarms.disable" => {
+            if zh {
+                "关闭"
+            } else {
+                "Disable"
+            }
+        }
+        "alarms.once" => {
+            if zh {
+                "仅一次"
+            } else {
+                "Once on"
+            }
+        }
+        "alarms.daily" => {
+            if zh {
+                "每天"
+            } else {
+                "Daily"
+            }
+        }
+        "alarms.next" => {
+            if zh {
+                "下次"
+            } else {
+                "next"
+            }
+        }
+        "hub.delete" => {
+            if zh {
+                "删除"
+            } else {
+                "Delete"
+            }
+        }
+        "weekday.0" => {
+            if zh {
+                "周日"
+            } else {
+                "Sun"
+            }
+        }
+        "weekday.1" => {
+            if zh {
+                "周一"
+            } else {
+                "Mon"
+            }
+        }
+        "weekday.2" => {
+            if zh {
+                "周二"
+            } else {
+                "Tue"
+            }
+        }
+        "weekday.3" => {
+            if zh {
+                "周三"
+            } else {
+                "Wed"
+            }
+        }
+        "weekday.4" => {
+            if zh {
+                "周四"
+            } else {
+                "Thu"
+            }
+        }
+        "weekday.5" => {
+            if zh {
+                "周五"
+            } else {
+                "Fri"
+            }
+        }
+        "weekday.6" => {
+            if zh {
+                "周六"
+            } else {
+                "Sat"
+            }
+        }
         _ => "",
     }
 }

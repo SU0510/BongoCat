@@ -276,6 +276,10 @@ pub struct WindowState {
     pub schema_version: u32,
     #[serde(default)]
     pub pet: Option<PetPlacement>,
+    /// The panel section the user last looked at, so reopening the panel comes
+    /// back to it. Absent in state files written before the panel had sections.
+    #[serde(default)]
+    pub hub_tab: Option<String>,
 }
 
 impl StoreData for WindowState {
@@ -458,6 +462,23 @@ mod tests {
         // strict version gate: non-1 is not silently migrated
         let loaded: Alarms = store.load();
         assert_eq!(loaded, Alarms::default());
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[test]
+    fn a_window_state_without_a_panel_section_still_loads() {
+        let root = temp_root();
+        let store: JsonStore<WindowState> = JsonStore::new(&root);
+        // Exactly what an older build wrote: no `hub_tab`, and the pet placed.
+        std::fs::write(
+            store.path(),
+            r#"{"schema_version": 1, "pet": {"x": 640, "y": 480}}"#,
+        )
+        .unwrap();
+        let loaded: WindowState = store.load();
+        assert_eq!(loaded.pet, Some(PetPlacement { x: 640, y: 480 }));
+        assert_eq!(loaded.hub_tab, None);
+        assert_eq!(loaded.schema_version, 1);
         let _ = std::fs::remove_dir_all(&root);
     }
 

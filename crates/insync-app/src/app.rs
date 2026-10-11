@@ -244,6 +244,14 @@ impl AppCore {
         state.pet = Some(PetPlacement { x, y });
         let _ = self.window_store.save(&state);
     }
+
+    /// Remembers which panel section the user was on, so the panel opens there
+    /// next time instead of always jumping back to the first tab.
+    pub fn save_hub_tab(&self, key: &str) {
+        let mut state = self.window_store.load();
+        state.hub_tab = Some(key.to_string());
+        let _ = self.window_store.save(&state);
+    }
 }
 
 // ---------------------------------------------------------------------------
