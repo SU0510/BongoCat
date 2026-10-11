@@ -39,8 +39,12 @@ jobs:
         run: |
           python3 tools/insync-sprites/generate_sprites.py
           python3 tools/insync-sprites/validate_sprites.py
-      - name: No uncommitted asset drift
-        run: git diff --exit-code -- resources/insync
+      # Byte comparison is unreliable across platforms (zlib differs between
+      # macOS and Ubuntu); compare decoded pixels instead.
+      - name: No pixel drift against committed assets
+        run: |
+          python3 tools/insync-sprites/generate_sprites.py --out /tmp/insync-regen/sprites
+          python3 tools/insync-sprites/check_pixel_drift.py /tmp/insync-regen/sprites
 
   test-linux:
     runs-on: ubuntu-latest

@@ -10,13 +10,17 @@ pixels. See docs/insync/sprite-assets.md for the production workflow.
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from PIL import Image
 
 REPO = Path(__file__).resolve().parents[2]
-OUT = REPO / "resources" / "insync" / "sprites"
+DEFAULT_OUT = REPO / "resources" / "insync" / "sprites"
+# `--out <dir>` redirects sheets/manifest/icons (used for pixel-drift checks
+# that regenerate into a temp directory and compare decoded pixels).
+OUT = Path(sys.argv[sys.argv.index("--out") + 1]) if "--out" in sys.argv else DEFAULT_OUT
 SCALE = 4
 FRAME_W, FRAME_H = 48, 64
 
@@ -836,7 +840,7 @@ def build_tray_icon() -> None:
     """32x32 tray icon cropped from the idle frame head."""
     frame = render_frame(IDLE, PALETTES["momo"])
     head = frame.crop((10, 5, 38, 33)).resize((32, 32), Image.NEAREST)
-    out = REPO / "resources" / "insync" / "icons"
+    out = OUT.parent / "icons"
     out.mkdir(parents=True, exist_ok=True)
     head.save(out / "tray.png")
 
