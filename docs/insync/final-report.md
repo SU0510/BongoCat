@@ -90,17 +90,22 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 | insync-server 集成（双用户全流程 + 安全矩阵） | 13 | ✅ |
 | insync-sprite（库加载/帧计算/优先级/行为） | 13 | ✅ |
 | insync-client（错误映射 1 + 引擎级双端集成 4） | 5 | ✅ |
-| insync-app（store 5 + clock 7 + notify 3 + 铃声解码 1 + hub 5 + palette 3） | 24 | ✅（不含 GUI 自动化） |
+| insync-app（store 4 + clock 7 + notify 3 + 铃声解码 1 + hub 5 + palette 3） | 23 | ✅（不含 GUI 自动化） |
 | bongocat-audio（回归：启用 wav feature 后原有测试） | 15（+1 ignored） | ✅ |
 | 素材校验 `validate_sprites.py` | 26 sheet | ✅ |
 | 素材校验 `validate_alarm.py`（格式/电平/削波/音高） | 1 WAV | ✅ |
 | BongoCat 工具契约测试 `tools/tests/` | 102 | ✅（含 workspace 版本契约与 workflow 校验） |
 
 命令：`cargo test --locked -p insync-core -p insync-server -p insync-client -p insync-sprite
--p insync-pet-window -p insync-app -p bongocat-audio`（79 + 15 通过）。
+-p insync-pet-window -p insync-app -p bongocat-audio`。六个 InSync crate 现在合计 **88**
+个测试（面板重做新增 hub 5 + palette 3 + store 1，并把 `insync-app` 从 14 提到 23），
+在 CI 的 macOS 与 Windows 任务上分别真机跑通；`bongocat-audio` 另有 15（+1 ignored）
+在 Linux 任务上跑通。
 另有 `cargo clippy --locked <六个 insync crate> -p bongocat-audio --all-targets -- -D warnings`
 全绿（pet-window 另在 `x86_64-pc-windows-msvc` target 上全绿），以及
 `cargo fmt --all -- --check` 与 `python3 -m unittest discover -s tools/tests` 102 项全绿。
+自 2026-10-11 起，这些命令不再在本机执行（见 §8 第 9 条与 goal 文档的验证策略），
+改由 `insync-verify` 工作流在三个平台上运行；本轮结果为 run 38119777698 全绿。
 
 ## 5. macOS / Windows 真实验证情况
 
@@ -201,7 +206,9 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 | 小窗口不挤 | 最小 360×500pt 截屏的列内文字边界 | 磁贴文字最宽 120..152 落在列 98..177 内，无裁切、无重叠 |
 
 **仍未验证**：以上是「没画错、看得清、没裁切」的证据，不是「好看」的证据。
-审美判断需要人眼，本次会话的模型不能读图（见 §8 第 1 条）。
+审美判断需要人眼，本次会话的模型不能读图（见 §8 第 1 条）。上述测量先在本地
+debug 构建上迭代，随后用同一份工具在**安装的 CI release 产物**上重放一遍，
+结论一致（§7），因此这些数字描述的就是使用者会看到的那份构建。
 
 ### 5.3 验证过程中的一次误写与恢复（如实记录）
 
@@ -229,7 +236,7 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 
 | 交付物 | 路径 | 状态 |
 | --- | --- | --- |
-| 桌面应用（macOS debug 冒烟二进制） | `target/debug/insync-app` | 本地构建 ✅ |
+| 桌面应用（macOS debug 冒烟二进制） | `target/debug/insync-app` | 本地构建 ✅（本地 `target/` 已于 2026-10-11 删除，见 §8 第 9 条） |
 | 桌面应用 + 服务器（macOS aarch64 release） | CI artifact `insync-macos-aarch64` | 由 CI 产出 |
 | 桌面应用 + 服务器（Windows x86_64 release） | CI artifact `insync-windows-x86_64` | 由 CI 产出 |
 | 服务器（本地构建） | `cargo build -p insync-server` → `target/debug/insync-server` | 本地构建 ✅（release 由 CI） |
@@ -241,7 +248,7 @@ insync-server (axum) ── SQLite(WAL)：users/sessions/relations/messages/lett
 | Windows 交叉验证 | `cargo xwin clippy --target x86_64-pc-windows-msvc`（六 crate，`-D warnings`） | 本机通过 ✅ |
 | 部署配置 | `Dockerfile`、`docker-compose.yml`、`docs/insync/deployment.md` | 已提交 ✅ |
 
-CI 产出的 release 二进制哈希（`insync-macos-aarch64`：当前安装的来自
+CI 产出的 release 二进制哈希（`insync-macos-aarch64`：本轮之前安装的是
 `3939521b`（run 38113466225，含 §5.1 的两处修复）`insync-app` =
 `8e46e665…`；此前的 `326408e1`（run 38108110093）`insync-app` =
 `b58b5b1a…`。`insync-server` 两次均为 `293f0ddd…`；
@@ -254,12 +261,26 @@ CI 产出的 release 二进制哈希（`insync-macos-aarch64`：当前安装的�
 | `~/.local/bin/insync-server` | 服务器二进制 | 已 ad-hoc 签名并验证 ✅ |
 
 安装后二进制哈希与 CI 产物不同，原因是 ad-hoc 签名会重写 Mach-O 的签名段
-（两个文件都恰好增长 18128 字节）。已用
-`otool -s` 逐 section 比对证明安装内容是 CI 产物本身：**app 的 22/22、
-server 的 17/17 个 section 内容逐字节一致**，差异仅在签名元数据；同一比对
-对上一轮 run 的产物给出 11 个 section 不同，说明该检查确实能发现差异。本地
+（文件恰好增长 18128 字节）。比对方式是 `otool -s` 逐个 section 取出内容、
+**忽略地址列**：签名会新增一条 load command，使所有 section 的起始地址整体
+后移，因此直接比对含地址列的原始输出会对同一份产物误报 0/22（本轮先踩到，
+改正后得到下面的结果）。本轮 app 的 **22/22 个 section 内容逐字节一致**，
+server 的 17/17 在上一轮同样一致；同一比对对上一轮 run 的产物给出 11 个
+section 不同，说明该检查确实能发现差异。本地
 安装使用 `-`（ad-hoc）证书，Gatekeeper 首次打开仍需右键“打开”；正式分发
 签名的缺少见 §8。
+
+当前安装内容为面板视觉重做这一轮的 CI 产物（`f638966c`，run 38119777698，
+五个任务全绿：assets 12s / test-linux 39s / build-macos 5m55s /
+build-windows 8m55s / docker-server 1m52s）：`insync-app` =
+`66fc76ae…`、`insync-server` = `293f0ddd…`（与上一轮逐字节相同，服务端代码
+未变，说明 macOS 构建可复现）、Windows 产物 `insync-app.exe` =
+`bb6b455c…`、`insync-server.exe` = `7726dee1…`（与上一轮不同；Windows PE
+跨 runner 不是逐字节可复现的，这与 macOS 侧的稳定结果并不矛盾，两者都只说明
+各自平台的表现）。安装后再跑一次 `verify_panel.py --app <安装的 release 二进制>`
+把 §5.2 的八分区测量重放一遍，结论与 debug 构建完全一致（选中磁贴正确、
+`stray_edge=0`、配色与卡片占比相同），因此**用户看到的安装版就是被测量的那份
+构建**。签名后的 22/22 section 比对同样针对这一轮产物重跑通过。
 
 ### 7.1 CI 实际运行记录（触发问题与修复）
 
@@ -335,13 +356,22 @@ job 全绿**，本机安装的二进制即该 run 的产物，并在其上复验
    字号层级与控件样式均已由 `palette` + gpui-kit 组件承载，见 §5.2。）
 8. **`insync-core` 中 `EventData` 对 `letter.read` 携带 `LetterId`**，若未来
    需要跨设备同步留言已读人的列表，需要扩展（当前单收件人模型够用）。
+9. **验证策略改为「只在 CI 跑」（2026-10-11，使用者要求）**：本机不再执行
+   `cargo fmt/clippy/test/build` 与交叉编译验证，原因是一次工作区级验证把
+   `target/` 涨到 17G 并让 228GB 磁盘写满（Bash 工具连日志文件都写不出来），
+   只能删掉 `target/` 恢复。此后每次验证 = 推送分支 + 读 `insync-verify` 结果。
+   两点后果如实说明：其一，未推送的改动在本机没有任何自动化验证；其二，
+   **只改文档的提交不会触发 `insync-verify`**（它的 `paths` 不含 `docs/`），
+   这类提交由「父提交的 CI 已全绿 + 改动不含任何构建输入」共同保证，而不是
+   重新跑一遍 CI。
 
 ## 9. 需要用户亲自完成的最少事项
 
 1. **在真实设备上目检**：分支已推送、CI 已跑通，macOS 产物已装入本机
-   `~/Applications/InSync.app`（见 §7），托盘“打开面板”、桌宠右键与透明背景
-   已在实机复验（§5.1）。仍需**人眼确认观感**（桌宠动作是否自然、面板排版是否
-   合理——本次会话的模型读不了图像）；Windows 侧请从 artifact
+   `~/Applications/InSync.app`（本轮的安装内容与哈希见 §7），托盘“打开面板”、
+   桌宠右键与透明背景已在实机复验（§5.1），面板视觉的像素测量也已在安装版上
+   重放（§5.2、§7）。仍需**人眼确认观感**（新配色和排版是否讨喜、桌宠动作是否
+   自然——本次会话的模型读不了图像）；Windows 侧请从 artifact
    `insync-windows-x86_64` 下载后在实机运行。
 2. **提供一台公网服务器 + 域名**（可选）：按 `docs/insync/deployment.md`
    执行 `docker compose up -d --build` + 反向代理 TLS；把地址填进两端
