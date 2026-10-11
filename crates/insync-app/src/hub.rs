@@ -8,6 +8,7 @@ use crate::i18n::text;
 use crate::palette;
 use crate::store::{Alarm, AlarmRepeat, PersonalAnniversary, PersonalNote, PersonalTodo};
 use gpui_kit::assets::IconName;
+use gpui_kit::base::Selectable;
 use gpui_kit::base::v_flex;
 use gpui_kit::component::avatar::Avatar;
 use gpui_kit::component::bubble::{Bubble, BubbleVariant};
@@ -22,7 +23,6 @@ use gpui_kit::component::progress::ProgressCircle;
 use gpui_kit::component::switch::Switch;
 use gpui_kit::component::{ActiveTheme, Icon, Root, Sizable, Size};
 use gpui_kit::prelude::FluentBuilder;
-use gpui_kit::base::Selectable;
 use gpui_kit::{
     AnyElement, App, AppContext, Context, Entity, Subscription, TitlebarOptions, Window,
     WindowBounds, WindowHandle, WindowOptions, div, prelude::*, px, size,

@@ -505,7 +505,10 @@ mod tests {
         )
         .unwrap();
         let loaded: Settings = store.load();
-        assert_eq!(loaded.character, "momo", "the first character is the default");
+        assert_eq!(
+            loaded.character, "momo",
+            "the first character is the default"
+        );
         assert_eq!(loaded.schema_version, 1);
         let _ = std::fs::remove_dir_all(&root);
     }

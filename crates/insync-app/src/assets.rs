@@ -95,18 +95,51 @@ pub fn sprite_library() -> &'static SpriteLibrary {
         }
         let mut sheets = sheets!(
             "momo",
-            "idle", "blink", "wave", "walk", "sleep", "work", "stretch", "react",
-            "poke_react", "message_react", "invite_react", "celebrate", "rest"
+            "idle",
+            "blink",
+            "wave",
+            "walk",
+            "sleep",
+            "work",
+            "stretch",
+            "react",
+            "poke_react",
+            "message_react",
+            "invite_react",
+            "celebrate",
+            "rest"
         );
         sheets.extend(sheets!(
             "momo-mint",
-            "idle", "blink", "wave", "walk", "sleep", "work", "stretch", "react",
-            "poke_react", "message_react", "invite_react", "celebrate", "rest"
+            "idle",
+            "blink",
+            "wave",
+            "walk",
+            "sleep",
+            "work",
+            "stretch",
+            "react",
+            "poke_react",
+            "message_react",
+            "invite_react",
+            "celebrate",
+            "rest"
         ));
         sheets.extend(sheets!(
             "nana",
-            "idle", "blink", "wave", "walk", "sleep", "work", "stretch", "react",
-            "poke_react", "message_react", "invite_react", "celebrate", "rest"
+            "idle",
+            "blink",
+            "wave",
+            "walk",
+            "sleep",
+            "work",
+            "stretch",
+            "react",
+            "poke_react",
+            "message_react",
+            "invite_react",
+            "celebrate",
+            "rest"
         ));
         SpriteLibrary::from_embedded(manifest, &sheets).expect("embedded sprite manifest valid")
     })
