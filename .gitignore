@@ -17,3 +17,5 @@ target
 
 # Freebuff 本地项目数据（项目级会话状态），不属于构建产物
 .freebuff/
+# Python 字节码缓存（tools/ 下的素材与契约脚本运行时产生）
+__pycache__/

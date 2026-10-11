@@ -81,6 +81,60 @@ PALETTES = {
         "paper_line": "#b9a98f",
         "wood": "#c9a678",
     },
+    # The second character: dark warm-brown twin braids with wispy center-parted
+    # bangs, a dusty-pink sleeveless top, a black crossbody strap and jeans —
+    # read off the reference photo. Same silhouette as momo; the style flags
+    # below drive the structural differences.
+    "nana": {
+        "outline": "#3d2c29",
+        "skin": "#f7d7b8",
+        "skin_shadow": "#eab890",
+        "hair": "#6b5147",
+        "hair_shadow": "#453029",
+        "hair_light": "#8d6e58",
+        "hoodie": "#e3a6ab",
+        "hoodie_shadow": "#c98b93",
+        "hoodie_deep": "#b57b85",
+        "accent": "#e0636f",
+        "pants": "#6f89b8",
+        "pants_shadow": "#54709f",
+        "shoe": "#e8e2d6",
+        "blush": "#f6b1b1",
+        "eye": "#3d2c29",
+        "white": "#ffffff",
+        "zzz": "#9db8d9",
+        "star": "#ffd98a",
+        "confetti_a": "#f2a6b3",
+        "confetti_b": "#9fd8c5",
+        "confetti_c": "#ffd98a",
+        "paper": "#fffdf5",
+        "paper_line": "#b9a98f",
+        "wood": "#c9a678",
+        "strap": "#4a4038",
+    },
+}
+
+
+@dataclass(frozen=True)
+class Style:
+    """Structural traits that differ between characters.
+
+    momo and its palette variants share the default; a new character flips the
+    flags its reference calls for. The draw functions branch on these instead of
+    on the character name, so a palette variant of nana needs no code.
+    """
+
+    braids: bool = False  # twin braids hanging over the shoulders
+    center_part: bool = False  # wispy bangs with a gap at the center
+    sleeveless: bool = False  # bare arms, no drawstrings or pocket
+    strap: bool = False  # black crossbody strap over the top
+    ahoge: bool = True  # the little curl on top
+
+
+STYLES = {
+    "momo": Style(),
+    "momo-mint": Style(),
+    "nana": Style(braids=True, center_part=True, sleeveless=True, strap=True, ahoge=False),
 }
 
 # ---------------------------------------------------------------------------
@@ -191,7 +245,7 @@ def draw_hair_back(g: Grid, p: Pose) -> None:
     g.vline(34, 24 + dy, 29 + dy, "outline")
 
 
-def draw_head(g: Grid, p: Pose) -> None:
+def draw_head(g: Grid, p: Pose, style: Style) -> None:
     dy, dx = p.bob + p.jump, p.lean
     # skull: x14..33, y8..26
     for y in range(9 + dy, 26 + dy):
@@ -203,35 +257,57 @@ def draw_head(g: Grid, p: Pose) -> None:
     g.hline(17 + dx, 30 + dx, 27 + dy, "outline")
     g.hline(16 + dx, 16 + dx, 26 + dy, "outline")
     g.hline(31 + dx, 31 + dx, 26 + dy, "outline")
-    draw_hair_front(g, p, dx, dy)
+    draw_hair_front(g, p, dx, dy, style)
     draw_face(g, p, dx, dy)
 
 
-def draw_hair_front(g: Grid, p: Pose, dx: int, dy: int) -> None:
+def draw_hair_front(g: Grid, p: Pose, dx: int, dy: int, style: Style) -> None:
     # top mass: rounded, y6..11
     g.hline(19 + dx, 28 + dx, 5 + dy, "hair")
     g.hline(17 + dx, 30 + dx, 6 + dy, "hair")
     for y in range(7 + dy, 12 + dy):
         g.hline(14 + dx, 33 + dx, y, "hair")
-    # bangs bottom edge with fringe tips
-    g.hline(15 + dx, 32 + dx, 12 + dy, "hair")
-    for tip in (16, 20, 24, 28):
-        g.vline(tip + dx, 13 + dy, 14 + dy, "hair")
-    g.vline(32 + dx, 13 + dy, 14 + dy, "hair")
-    # shadow right under the bangs
-    g.hline(16 + dx, 31 + dx, 13 + dy, "hair_shadow")
-    for tip in (16, 20, 24, 28):
-        g.plot(tip + dx, 15 + dy, "skin_shadow")
-    g.plot(32 + dx, 15 + dy, "skin_shadow")
-    # side locks framing the face, ending at the jaw
-    g.vline(13 + dx, 9 + dy, 22 + dy, "hair")
-    g.vline(14 + dx, 11 + dy, 24 + dy, "hair")
-    g.plot(15 + dx, 23 + dy, "hair")
-    g.plot(15 + dx, 24 + dy, "hair")
-    g.vline(34 + dx, 9 + dy, 22 + dy, "hair")
-    g.vline(33 + dx, 11 + dy, 24 + dy, "hair")
-    g.plot(32 + dx, 23 + dy, "hair")
-    g.plot(32 + dx, 24 + dy, "hair")
+    if style.center_part:
+        # wispy bangs, parted at the center: the gap widens downward and the
+        # sweep grows toward the sides, like the reference's curtain bangs
+        g.hline(15 + dx, 22 + dx, 12 + dy, "hair")
+        g.hline(25 + dx, 32 + dx, 12 + dy, "hair")
+        g.hline(15 + dx, 19 + dx, 13 + dy, "hair")
+        g.hline(28 + dx, 32 + dx, 13 + dy, "hair")
+        g.plot(16 + dx, 14 + dy, "hair")
+        g.plot(31 + dx, 14 + dy, "hair")
+        g.hline(17 + dx, 22 + dx, 13 + dy, "hair_shadow")
+        g.hline(25 + dx, 30 + dx, 13 + dy, "hair_shadow")
+        g.plot(17 + dx, 14 + dy, "skin_shadow")
+        g.plot(30 + dx, 14 + dy, "skin_shadow")
+    else:
+        # bangs bottom edge with fringe tips
+        g.hline(15 + dx, 32 + dx, 12 + dy, "hair")
+        for tip in (16, 20, 24, 28):
+            g.vline(tip + dx, 13 + dy, 14 + dy, "hair")
+        g.vline(32 + dx, 13 + dy, 14 + dy, "hair")
+        # shadow right under the bangs
+        g.hline(16 + dx, 31 + dx, 13 + dy, "hair_shadow")
+        for tip in (16, 20, 24, 28):
+            g.plot(tip + dx, 15 + dy, "skin_shadow")
+        g.plot(32 + dx, 15 + dy, "skin_shadow")
+    if style.braids:
+        # side locks stop where the braids take over
+        g.vline(13 + dx, 9 + dy, 17 + dy, "hair")
+        g.vline(14 + dx, 11 + dy, 17 + dy, "hair")
+        g.vline(34 + dx, 9 + dy, 17 + dy, "hair")
+        g.vline(33 + dx, 11 + dy, 17 + dy, "hair")
+        draw_braids(g, p, dx, dy)
+    else:
+        # side locks framing the face, ending at the jaw
+        g.vline(13 + dx, 9 + dy, 22 + dy, "hair")
+        g.vline(14 + dx, 11 + dy, 24 + dy, "hair")
+        g.plot(15 + dx, 23 + dy, "hair")
+        g.plot(15 + dx, 24 + dy, "hair")
+        g.vline(34 + dx, 9 + dy, 22 + dy, "hair")
+        g.vline(33 + dx, 11 + dy, 24 + dy, "hair")
+        g.plot(32 + dx, 23 + dy, "hair")
+        g.plot(32 + dx, 24 + dy, "hair")
     # bob silhouette outline
     g.hline(18 + dx, 29 + dx, 4 + dy, "outline")
     g.plot(17 + dx, 5 + dy, "outline")
@@ -244,26 +320,77 @@ def draw_hair_front(g: Grid, p: Pose, dx: int, dy: int) -> None:
     g.plot(33 + dx, 8 + dy, "outline")
     g.plot(13 + dx, 9 + dy, "outline")
     g.plot(34 + dx, 9 + dy, "outline")
-    g.vline(12 + dx, 10 + dy, 21 + dy, "outline")
-    g.vline(35 + dx, 10 + dy, 21 + dy, "outline")
-    g.plot(12 + dx, 22 + dy, "outline")
-    g.plot(35 + dx, 22 + dy, "outline")
-    g.hline(13 + dx, 13 + dx, 25 + dy, "outline")
-    g.hline(34 + dx, 34 + dx, 25 + dy, "outline")
-    g.plot(14 + dx, 24 + dy, "outline")
-    g.plot(33 + dx, 24 + dy, "outline")
-    g.plot(15 + dx, 25 + dy, "outline")
-    g.plot(32 + dx, 25 + dy, "outline")
+    if style.braids:
+        # the outline hands off to the braid edges below the ears
+        g.vline(12 + dx, 10 + dy, 15 + dy, "outline")
+        g.vline(35 + dx, 10 + dy, 15 + dy, "outline")
+    else:
+        g.vline(12 + dx, 10 + dy, 21 + dy, "outline")
+        g.vline(35 + dx, 10 + dy, 21 + dy, "outline")
+        g.plot(12 + dx, 22 + dy, "outline")
+        g.plot(35 + dx, 22 + dy, "outline")
+        g.hline(13 + dx, 13 + dx, 25 + dy, "outline")
+        g.hline(34 + dx, 34 + dx, 25 + dy, "outline")
+        g.plot(14 + dx, 24 + dy, "outline")
+        g.plot(33 + dx, 24 + dy, "outline")
+        g.plot(15 + dx, 25 + dy, "outline")
+        g.plot(32 + dx, 25 + dy, "outline")
     # shine
     g.hline(18 + dx, 24 + dx, 7 + dy, "hair_light")
     g.hline(19 + dx, 23 + dx, 8 + dy, "hair_light")
     g.plot(33 + dx, 12 + dy, "hair_light")
-    # ahoge: a little curl on top
-    g.plot(24 + dx, 2 + dy, "outline")
-    g.plot(25 + dx, 3 + dy, "outline")
-    g.plot(23 + dx, 3 + dy, "outline")
-    g.plot(24 + dx, 3 + dy, "outline")
-    g.plot(24 + dx, 4 + dy, "outline")
+    if style.ahoge:
+        # ahoge: a little curl on top
+        g.plot(24 + dx, 2 + dy, "outline")
+        g.plot(25 + dx, 3 + dy, "outline")
+        g.plot(23 + dx, 3 + dy, "outline")
+        g.plot(24 + dx, 3 + dy, "outline")
+        g.plot(24 + dx, 4 + dy, "outline")
+
+
+def draw_braids(g: Grid, p: Pose, dx: int, dy: int) -> None:
+    """Twin braids hanging from behind the ears down to the waist.
+
+    Three hair columns with the outer edge outlined; the twist reads from a
+    shadow pixel that travels across the strand on a 4-row cycle, with a
+    highlight on the opposite side. Braids hang *behind* bare arms and hands
+    (a raised arm covers them), so a pixel the arm already drew as skin wins.
+    In the walk cycle each braid follows the step by one pixel and they swing
+    in opposite directions.
+    """
+    sway = (p.prop_phase % 2) if p.legs in ("walk_a", "walk_b") else 0
+    tie_y = 38
+    twist = [0, 1, 2, 1]  # shadow column index within the 3-wide strand
+    for side in ("l", "r"):
+        ox = dx + (sway if side == "l" else -sway)
+        if side == "l":
+            cols = (11 + ox, 12 + ox, 13 + ox)
+            outer = 10 + ox
+        else:
+            cols = (34 + ox, 35 + ox, 36 + ox)
+            outer = 37 + ox
+
+        def put(x: int, y: int, color: str) -> None:
+            # braids pass behind skin (bare arms, hands) but over everything else
+            if g.px.get((x, y)) != "skin":
+                g.plot(x, y, color)
+
+        for i, y in enumerate(range(15, tie_y)):
+            phase = i % 4
+            for x in cols:
+                put(x, y + dy, "hair")
+            put(cols[twist[phase]], y + dy, "hair_shadow")
+            if phase == 0:
+                put(cols[0], y + dy, "hair_light")
+            elif phase == 2:
+                put(cols[2], y + dy, "hair_light")
+        g.vline(outer, 15 + dy, tie_y - 1 + dy, "outline")
+        # hair tie and the tapering tip (skin still wins)
+        for x in cols:
+            put(x, tie_y + dy, "accent")
+            put(x, tie_y + 1 + dy, "accent")
+        put(cols[1], tie_y + 2 + dy, "hair")
+        put(cols[1], tie_y + 3 + dy, "outline")
 
 
 def draw_face(g: Grid, p: Pose, dx: int, dy: int) -> None:
@@ -311,9 +438,9 @@ def draw_face(g: Grid, p: Pose, dx: int, dy: int) -> None:
         g.hline(31 + dx, 32 + dx, 21 + dy, "blush")
 
 
-def draw_torso(g: Grid, p: Pose) -> None:
+def draw_torso(g: Grid, p: Pose, style: Style) -> None:
     dy = p.bob + p.jump
-    # hoodie body: x15..32, y27..47
+    # top body: x15..32, y27..47
     for y in range(28 + dy, 46 + dy):
         g.hline(15, 32, y, "hoodie")
     g.hline(15, 32, 27 + dy, "hoodie")
@@ -321,20 +448,28 @@ def draw_torso(g: Grid, p: Pose) -> None:
     # shading on the right + hem
     g.vline(31, 29 + dy, 45 + dy, "hoodie_shadow")
     g.hline(15, 32, 45 + dy, "hoodie_shadow")
-    # hood collar behind the neck
-    g.hline(16, 31, 26 + dy, "hoodie_shadow")
-    g.hline(15, 32, 27 + dy, "hoodie")
-    g.hline(16, 31, 28 + dy, "hoodie_shadow")
-    # drawstrings
-    g.vline(20, 29 + dy, 33 + dy, "accent")
-    g.vline(27, 29 + dy, 33 + dy, "accent")
-    g.plot(20, 34 + dy, "accent")
-    g.plot(27, 34 + dy, "accent")
-    # kangaroo pocket
-    g.hline(18, 29, 39 + dy, "hoodie_deep")
-    g.vline(18, 39 + dy, 43 + dy, "hoodie_deep")
-    g.vline(29, 39 + dy, 43 + dy, "hoodie_deep")
-    g.hline(19, 28, 43 + dy, "hoodie_deep")
+    if style.sleeveless:
+        # scoop neckline: skin shows between the jaw and the collar
+        g.hline(21, 26, 27 + dy, "skin")
+        g.hline(21, 26, 28 + dy, "skin")
+        g.plot(20, 28 + dy, "hoodie_shadow")
+        g.plot(27, 28 + dy, "hoodie_shadow")
+        g.hline(20, 27, 29 + dy, "hoodie_shadow")
+    else:
+        # hood collar behind the neck
+        g.hline(16, 31, 26 + dy, "hoodie_shadow")
+        g.hline(15, 32, 27 + dy, "hoodie")
+        g.hline(16, 31, 28 + dy, "hoodie_shadow")
+        # drawstrings
+        g.vline(20, 29 + dy, 33 + dy, "accent")
+        g.vline(27, 29 + dy, 33 + dy, "accent")
+        g.plot(20, 34 + dy, "accent")
+        g.plot(27, 34 + dy, "accent")
+        # kangaroo pocket
+        g.hline(18, 29, 39 + dy, "hoodie_deep")
+        g.vline(18, 39 + dy, 43 + dy, "hoodie_deep")
+        g.vline(29, 39 + dy, 43 + dy, "hoodie_deep")
+        g.hline(19, 28, 43 + dy, "hoodie_deep")
     # body outline
     g.vline(14, 28 + dy, 45 + dy, "outline")
     g.vline(33, 28 + dy, 45 + dy, "outline")
@@ -346,37 +481,52 @@ def draw_torso(g: Grid, p: Pose) -> None:
     g.plot(32, 46 + dy, "outline")
 
 
-def draw_arm(g: Grid, p: Pose, side: str) -> None:
+def draw_arm(g: Grid, p: Pose, side: str, style: Style) -> None:
     dy = p.bob + p.jump
     pose = p.arm_l if side == "l" else p.arm_r
     if pose == "none":
         return
+    # bare arms for the sleeveless style, with a fabric cap at the shoulder
+    fill = "skin" if style.sleeveless else "hoodie"
+    shade = "skin_shadow" if style.sleeveless else "hoodie_shadow"
+    cap_start, cap_end = None, None
+    if style.sleeveless:
+        if pose == "down":
+            cap_start, cap_end = 29, 31
+        elif pose in ("up", "stretch"):
+            cap_start, cap_end = 27, 29
     if pose == "down":
         x0, x1 = (11, 13) if side == "l" else (34, 36)
         for y in range(29 + dy, 41 + dy):
-            g.hline(x0, x1, y, "hoodie")
-        g.hline(x0, x1, 41 + dy, "hoodie_shadow")
+            g.hline(x0, x1, y, fill)
+        g.hline(x0, x1, 41 + dy, shade)
         g.vline(x0 if side == "l" else x1, 29 + dy, 41 + dy, "outline")
         g.hline(x0 + 1 if side == "l" else x0, x1, 28 + dy, "outline")
         g.hline(x0, x1, 42 + dy, "outline")
         # hand
         g.rect(x0 + 1 if side == "l" else x0, 40 + dy, x1, 41 + dy, "skin")
+        if cap_start is not None:
+            g.hline(x0, x1, cap_start + dy, "hoodie")
+            g.hline(x0, x1, cap_end + dy, "hoodie")
     elif pose == "up":
         x0, x1 = (11, 13) if side == "l" else (34, 36)
         for y in range(19 + dy, 29 + dy):
-            g.hline(x0, x1, y, "hoodie")
+            g.hline(x0, x1, y, fill)
         g.vline(x0 if side == "l" else x1, 19 + dy, 29 + dy, "outline")
         g.hline(x0, x1, 29 + dy, "outline")
         g.hline(x0 + 1 if side == "l" else x0, x1, 18 + dy, "outline")
         g.rect(x0 + 1 if side == "l" else x0, 16 + dy, x1, 17 + dy, "skin")
+        if cap_start is not None:
+            g.hline(x0, x1, cap_start + dy, "hoodie")
+            g.hline(x0, x1, cap_end + dy, "hoodie")
     elif pose == "wave":
         if side == "l":
             return
         phase = p.prop_phase % 2
         hy = 22 + dy - phase
         for y in range(hy, hy + 3):
-            g.hline(33, 38, y, "hoodie")
-        g.hline(33, 38, hy + 3, "hoodie_shadow")
+            g.hline(33, 38, y, fill)
+        g.hline(33, 38, hy + 3, shade)
         g.hline(33, 38, hy - 1, "outline")
         g.hline(34, 38, hy + 4, "outline")
         g.vline(33, hy, hy + 4, "outline")
@@ -388,64 +538,88 @@ def draw_arm(g: Grid, p: Pose, side: str) -> None:
     elif pose == "forward":
         if side == "l":
             for x in range(15, 21):
-                g.hline(x, x, 34 + dy, "hoodie")
-            g.hline(15, 21, 33 + dy, "hoodie")
-            g.hline(15, 21, 35 + dy, "hoodie_shadow")
+                g.hline(x, x, 34 + dy, fill)
+            g.hline(15, 21, 33 + dy, fill)
+            g.hline(15, 21, 35 + dy, shade)
             g.hline(15, 20, 32 + dy, "outline")
             g.hline(15, 20, 36 + dy, "outline")
             g.rect(20, 33 + dy, 21, 35 + dy, "skin")
         else:
             for x in range(27, 33):
-                g.hline(x, x, 34 + dy, "hoodie")
-            g.hline(26, 32, 33 + dy, "hoodie")
-            g.hline(26, 32, 35 + dy, "hoodie_shadow")
+                g.hline(x, x, 34 + dy, fill)
+            g.hline(26, 32, 33 + dy, fill)
+            g.hline(26, 32, 35 + dy, shade)
             g.hline(27, 32, 32 + dy, "outline")
             g.hline(27, 32, 36 + dy, "outline")
             g.rect(26, 33 + dy, 27, 35 + dy, "skin")
     elif pose == "book":
         if side == "l":
             for x in range(14, 20):
-                g.hline(x, x, 36 + dy, "hoodie")
-            g.hline(14, 19, 35 + dy, "hoodie")
-            g.hline(14, 19, 37 + dy, "hoodie_shadow")
+                g.hline(x, x, 36 + dy, fill)
+            g.hline(14, 19, 35 + dy, fill)
+            g.hline(14, 19, 37 + dy, shade)
             g.hline(14, 18, 34 + dy, "outline")
             g.hline(14, 18, 38 + dy, "outline")
             g.rect(18, 35 + dy, 19, 37 + dy, "skin")
         else:
             for x in range(28, 34):
-                g.hline(x, x, 36 + dy, "hoodie")
-            g.hline(28, 33, 35 + dy, "hoodie")
-            g.hline(28, 33, 37 + dy, "hoodie_shadow")
+                g.hline(x, x, 36 + dy, fill)
+            g.hline(28, 33, 35 + dy, fill)
+            g.hline(28, 33, 37 + dy, shade)
             g.hline(29, 33, 34 + dy, "outline")
             g.hline(29, 33, 38 + dy, "outline")
             g.rect(28, 35 + dy, 29, 37 + dy, "skin")
     elif pose == "flail":
         if side == "l":
             for x, y in [(13, 30 + dy), (12, 28 + dy), (11, 26 + dy), (11, 24 + dy)]:
-                g.hline(x, x + 1, y, "hoodie")
+                g.hline(x, x + 1, y, fill)
             g.rect(10, 21 + dy, 11, 23 + dy, "skin")
         else:
             for x, y in [(34, 30 + dy), (35, 28 + dy), (36, 26 + dy), (36, 24 + dy)]:
-                g.hline(x - 1, x, y, "hoodie")
+                g.hline(x - 1, x, y, fill)
             g.rect(36, 21 + dy, 37, 23 + dy, "skin")
     elif pose == "cup":
         if side == "l":
             return
         for x in range(29, 34):
-            g.hline(x, x, 36 + dy, "hoodie")
-        g.hline(29, 33, 35 + dy, "hoodie")
-        g.hline(29, 33, 37 + dy, "hoodie_shadow")
+            g.hline(x, x, 36 + dy, fill)
+        g.hline(29, 33, 35 + dy, fill)
+        g.hline(29, 33, 37 + dy, shade)
         g.rect(32, 38 + dy, 33, 39 + dy, "skin")
     elif pose == "stretch":
         x0, x1 = (11, 13) if side == "l" else (34, 36)
         for y in range(18 + dy, 29 + dy):
-            g.hline(x0, x1, y, "hoodie")
+            g.hline(x0, x1, y, fill)
         g.vline(x0 if side == "l" else x1, 18 + dy, 29 + dy, "outline")
         g.hline(x0, x1, 29 + dy, "outline")
         g.hline(x0 + 1 if side == "l" else x0, x1, 17 + dy, "outline")
         g.rect(x0 + 1 if side == "l" else x0, 14 + dy, x1, 16 + dy, "skin")
         g.plot(x0 if side == "l" else x1 + 1, 14 + dy, "skin")
         g.plot(x0 if side == "l" else x1 + 1, 15 + dy, "skin")
+        if cap_start is not None:
+            g.hline(x0, x1, cap_start + dy, "hoodie")
+            g.hline(x0, x1, cap_end + dy, "hoodie")
+
+
+def draw_strap(g: Grid, p: Pose) -> None:
+    """The black crossbody strap with its bag: over the right shoulder
+    (viewer's), bag at the left hip, matching the reference.
+
+    Drawn after the arms (the strap passes over the top) and before the head
+    (the braids hang over it), following the torso's bob so it stays on the
+    clothes.
+    """
+    dy = p.bob + p.jump
+    for y in range(27, 44):
+        x = 31 - (y - 27) * 16 // 17
+        g.plot(x, y + dy, "strap")
+        g.plot(x + 1, y + dy, "strap")
+    # the bag at the strap's low end, hanging at the hip
+    g.rect(14, 42 + dy, 19, 46 + dy, "strap")
+    g.rect(14, 42 + dy, 19, 43 + dy, "hoodie_deep")
+    g.rect_outline(14, 42 + dy, 19, 46 + dy, "outline")
+    g.plot(16, 47 + dy, "outline")
+    g.plot(17, 47 + dy, "outline")
 
 
 def draw_legs(g: Grid, p: Pose) -> None:
@@ -790,14 +964,16 @@ ANIMATIONS: dict[str, dict] = {
 # ---------------------------------------------------------------------------
 
 
-def render_frame(pose: Pose, pal: dict[str, str]) -> Image.Image:
+def render_frame(pose: Pose, pal: dict[str, str], style: Style) -> Image.Image:
     g = Grid(FRAME_W, FRAME_H)
     draw_hair_back(g, pose)
     draw_legs(g, pose)
-    draw_torso(g, pose)
-    draw_arm(g, pose, "l")
-    draw_arm(g, pose, "r")
-    draw_head(g, pose)
+    draw_torso(g, pose, style)
+    draw_arm(g, pose, "l", style)
+    draw_arm(g, pose, "r", style)
+    if style.strap:
+        draw_strap(g, pose)
+    draw_head(g, pose, style)
     draw_props(g, pose)
     g.translate(0, 2)
     return g.to_image(pal)
@@ -806,11 +982,12 @@ def render_frame(pose: Pose, pal: dict[str, str]) -> Image.Image:
 def build_sheets() -> dict:
     manifest = {"format_version": 1, "characters": {}}
     for char_name, pal in PALETTES.items():
+        style = STYLES.get(char_name, Style())
         char_dir = OUT / char_name
         char_dir.mkdir(parents=True, exist_ok=True)
         anims: dict[str, dict] = {}
         for anim_name, spec in ANIMATIONS.items():
-            frames = [render_frame(p, pal) for p in spec["poses"]]
+            frames = [render_frame(p, pal, style) for p in spec["poses"]]
             sheet = Image.new("RGBA", (FRAME_W * len(frames) * SCALE, FRAME_H * SCALE),
                               (0, 0, 0, 0))
             for i, fr in enumerate(frames):
@@ -838,7 +1015,7 @@ def build_sheets() -> dict:
 
 def build_tray_icon() -> None:
     """32x32 tray icon cropped from the idle frame head."""
-    frame = render_frame(IDLE, PALETTES["momo"])
+    frame = render_frame(IDLE, PALETTES["momo"], STYLES["momo"])
     head = frame.crop((10, 5, 38, 33)).resize((32, 32), Image.NEAREST)
     out = OUT.parent / "icons"
     out.mkdir(parents=True, exist_ok=True)
@@ -846,21 +1023,23 @@ def build_tray_icon() -> None:
 
 
 def build_contact_sheet() -> None:
-    """One PNG with the first frame of every animation for quick review."""
-    cols = len(ANIMATIONS)
-    sheet = Image.new("RGBA", (FRAME_W * cols * SCALE, FRAME_H * SCALE * 2),
-                      (250, 245, 238, 255))
-    for i, (name, spec) in enumerate(ANIMATIONS.items()):
-        f0 = render_frame(spec["poses"][0], PALETTES["momo"]).resize(
-            (FRAME_W * SCALE, FRAME_H * SCALE), Image.NEAREST)
-        f1 = render_frame(spec["poses"][min(2, len(spec["poses"]) - 1)],
-                          PALETTES["momo"]).resize(
-            (FRAME_W * SCALE, FRAME_H * SCALE), Image.NEAREST)
-        sheet.paste(f0, (i * FRAME_W * SCALE, 0))
-        sheet.paste(f1, (i * FRAME_W * SCALE, FRAME_H * SCALE))
+    """One PNG per character with the first frame of every animation."""
     target = REPO / "target" / "insync-preview"
     target.mkdir(parents=True, exist_ok=True)
-    sheet.save(target / "contact-sheet.png")
+    cols = len(ANIMATIONS)
+    for char_name, pal in PALETTES.items():
+        style = STYLES.get(char_name, Style())
+        sheet = Image.new("RGBA", (FRAME_W * cols * SCALE, FRAME_H * SCALE * 2),
+                          (250, 245, 238, 255))
+        for i, (name, spec) in enumerate(ANIMATIONS.items()):
+            f0 = render_frame(spec["poses"][0], pal, style).resize(
+                (FRAME_W * SCALE, FRAME_H * SCALE), Image.NEAREST)
+            f1 = render_frame(spec["poses"][min(2, len(spec["poses"]) - 1)],
+                              pal, style).resize(
+                (FRAME_W * SCALE, FRAME_H * SCALE), Image.NEAREST)
+            sheet.paste(f0, (i * FRAME_W * SCALE, 0))
+            sheet.paste(f1, (i * FRAME_W * SCALE, FRAME_H * SCALE))
+        sheet.save(target / f"contact-sheet-{char_name}.png")
 
 
 def main() -> None:

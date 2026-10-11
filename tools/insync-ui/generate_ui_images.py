@@ -20,6 +20,8 @@ Outputs (checked in, embedded by `crates/insync-app/src/assets.rs`):
 
     resources/insync/ui/momo_portrait.png   head/bust crop, 96x96
     resources/insync/ui/momo_wave.png       waving full pose, 100x194
+    resources/insync/ui/nana_portrait.png   head/bust crop, 96x96
+    resources/insync/ui/nana_wave.png       waving full pose, 100x194
 """
 
 from __future__ import annotations
@@ -30,13 +32,16 @@ from pathlib import Path
 from PIL import Image, ImageChops
 
 ROOT = Path(__file__).resolve().parents[2]
-SPRITES = ROOT / "resources" / "insync" / "sprites" / "momo"
+SPRITES = ROOT / "resources" / "insync" / "sprites"
 OUT = ROOT / "resources" / "insync" / "ui"
 
 FRAME_W, FRAME_H = 192, 256
 
-# Crop windows measured from the idle sheet: the head/bust occupies the top
-# square of the figure (ears start at y=16, the shoulders at y=120).
+CHARACTERS = ("momo", "nana")
+
+# Crop window measured from the momo idle sheet: the head/bust occupies the top
+# square of the figure (the braids start at y=16, the shoulders at y=120). The
+# characters share one silhouette, so the same window crops both.
 PORTRAIT_CROP = (44, 12, 148, 120)
 # The wave animation's frame 1 has the paw raised, which reads as a greeting.
 WAVE_FRAME = 1
@@ -91,15 +96,16 @@ def save(image: Image.Image, name: str) -> None:
 
 def build() -> list[tuple[str, Image.Image]]:
     """Every panel image, in the order the summary prints them."""
-    idle = Image.open(SPRITES / "idle.png")
-    wave = Image.open(SPRITES / "wave.png")
+    images = []
+    for character in CHARACTERS:
+        idle = Image.open(SPRITES / character / "idle.png")
+        wave = Image.open(SPRITES / character / "wave.png")
 
-    portrait = crop_to_ink(frame(idle, 0).crop(PORTRAIT_CROP))
-    pose = crop_to_ink(frame(wave, WAVE_FRAME))
-    return [
-        ("momo_portrait.png", scale(portrait, PORTRAIT_SIZE)),
-        ("momo_wave.png", scale(pose, WAVE_SIZE)),
-    ]
+        portrait = crop_to_ink(frame(idle, 0).crop(PORTRAIT_CROP))
+        pose = crop_to_ink(frame(wave, WAVE_FRAME))
+        images.append((f"{character}_portrait.png", scale(portrait, PORTRAIT_SIZE)))
+        images.append((f"{character}_wave.png", scale(pose, WAVE_SIZE)))
+    return images
 
 
 def check(images: list[tuple[str, Image.Image]]) -> int:
