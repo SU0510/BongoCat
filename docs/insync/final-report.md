@@ -296,6 +296,21 @@ build-windows 8m55s / docker-server 1m52s）：`insync-app` =
 `stray_edge=0`、配色与卡片占比相同），因此**用户看到的安装版就是被测量的那份
 构建**。签名后的 22/22 section 比对同样针对这一轮产物重跑通过。
 
+本机当前安装的是 Nana 视觉返工（`433aa5df`，run 38232892428，2026-10-12）的
+CI 产物，六个任务全绿：contracts 6s / assets 12s / test-linux 53s /
+build-macos 6m33s / build-windows 9m06s / docker-server 1m38s。`assets` 任务在
+Ubuntu 上重跑生成器 + `validate_sprites.py` + `check_pixel_drift.py` +
+`generate_ui_images.py --check`，也就是说新精灵在**另一套 Pillow/zlib 环境**下
+逐像素一致。CI 产物 `insync-app` = `07ecfeb6…`（安装并 ad-hoc 签名后
+`c4fdd2c5…`，文件 +18128 字节即签名段）、`insync-server` = `fcad8567…`
+（安装后 `87ed8d23…`，与上两轮逐字节相同：服务端代码未变，macOS 构建可复现）。
+安装后 `codesign --verify` 对 app 与 server 均通过，`otool` 逐 section 比对
+（忽略地址列，参数顺序 `<segname> <sectname> <binary>`）为 app 22/22、
+server 17/17 一致，负向对照 app↔server 20/22 不同。旧实例先 `SIGTERM`
+（2 秒内干净退出），替换二进制后重新 `open ~/Applications/InSync.app`
+（18:07:32 启动），当前桌宠即新形象。面板外观的**人工满意**仍待使用者确认
+（§8.1）：`verify_panel.py` 需要屏幕录制授权，自动化 shell 内取不到画面。
+
 ### 7.1 CI 实际运行记录（触发问题与修复）
 
 分支推送后 `insync-verify` 一共暴露出六个真实问题，均已修复并留下提交：
