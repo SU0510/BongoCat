@@ -329,6 +329,25 @@ test-linux 49s / build-macos 5m43s / build-windows 9m52s / docker-server 2m7s。
 两者都需要使用者本机人眼/手感确认——本环境没有屏幕录制授权，也无法在会话里人工
 点桌面。
 
+本机现又换成「回退到上上版」（`0e76f02f`，run 38260761809，2026-10-12）的产物，
+六个任务全绿：contracts 7s / assets 16s / test-linux 55s / build-macos 7m11s /
+build-windows 9m17s / docker-server 2m4s。回退本身是机械取回：生成器两条路径与
+nana 的 13 张精灵图、2 张裁切图都从 `a76a7a4c` 原样 checkout（`git diff a76a7a4c
+-- tools/insync-sprites/generate_sprites.py tools/insync-ui/generate_ui_images.py
+resources/insync` 为空），`assets` 任务在另一套 Pillow/zlib 环境下重跑生成器 +
+`validate_sprites.py` + `check_pixel_drift.py` + `generate_ui_images.py --check`
+全部通过，即回退后的素材在 CI 上也逐像素一致。CI 产物 `insync-app` =
+`d426f99f…`（安装并 ad-hoc 签名后 `fb36a710…`）、`insync-server` = `fcad8567…`
+（安装后 `87ed8d23…`，与上两轮**逐字节相同**：服务端代码未变，macOS 构建可复现）。
+`codesign --verify` 对 app 与 server 均通过，`otool` 逐 section 比对（忽略地址列）
+为 app 22/22、server 17/17 一致，负向对照 app↔server 仅 5/17 相同。旧实例
+`SIGTERM` 后 0.03 秒内干净退出，替换二进制后重新 `open ~/Applications/InSync.app`
+（22:28:45 启动，PID 424，7 分钟后仍在、无 crash report；数据根仍只有
+`com.ayangweb.insync`）。**这一轮补了一个直接证据**：安装后的二进制里逐字节搜到
+回退版 `nana/idle.png`（3223 B）与 `nana_portrait.png`，搜不到被否决的 chibi 版
+（3181 B）——两份 PNG 都是编译期内嵌的，所以「使用者看到的桌宠就是回退版素材」
+不靠推断；点击区域与观感的判断仍需使用者本人（同上段）。
+
 ### 7.1 CI 实际运行记录（触发问题与修复）
 
 分支推送后 `insync-verify` 一共暴露出六个真实问题，均已修复并留下提交：
