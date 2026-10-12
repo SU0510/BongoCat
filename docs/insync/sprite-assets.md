@@ -18,16 +18,28 @@ tools/insync-sprites/
 深暖灰描边；两套调色板变体（`momo` 桃粉 / `momo-mint` 薄荷），形状完全一致，
 便于两位伴侣区分。
 
-**Nana**：同一体型与绘制管线，按真实人物特征 redesign：深棕色双麻花辫（含
-中分空气刘海、发绳与行走摆动）+ 玫瑰粉无袖上衣 + 斜挎包带，无呆毛。形状与
-Momo 明显不同（辫子在裸臂后层、无抽绳与口袋、领口为弧形），因此不适合用
-调色板变体表达。
+**Nana**：Q 版**大头短腿**比例（头占身高近一半、躯干短、腿短鞋厚，接近二次元
+游戏常见的 chibi 头身），按真实人物特征 redesign：深棕色双麻花辫（贴脸而下、
+搭在肩膀**身前**垂到发绳，含发绳与行走摆动）+ 玫瑰粉无袖上衣 + 斜挎包带 +
+瓜子脸（渐收轮廓、圆润下巴，不做刻意尖下巴）；头发**贴着发际线向后梳**，没有
+刘海——额头完全露出，发际线是从额中向两侧太阳穴下探的弧线，头发在鬓角汇入
+辫子。无呆毛。第一版肤色/描边直接取照片色，观感发黄发黑；已提亮为暖 ivory
+肤色 + 软暖褐描边。形状与 Momo 明显不同（大头比例、辫子垂在胸前、无抽绳与
+口袋、领口为弧形），因此不适合用调色板变体表达。
 
-**结构旗标**：绘制函数按 `Style` 旗标（`braids` / `center_part` /
-`sleeveless` / `strap` / `ahoge`）分支，而不是按角色名分支——新增调色板
-变体零代码，新增结构特征时在 `STYLES` 里声明旗标即可（`tools/insync-
-sprites/generate_sprites.py`）。共享的绘制规则：辫子画在皮肤后层（裸臂与手
-覆盖辫子，不穿模）、行走循环 ±1px 摆动、发绳用角色 accent 色。
+**结构旗标**：绘制函数按 `Style` 旗标（`braids` / `combed_back` /
+`sleeveless` / `strap` / `big_head` / `ahoge`）分支，而不是按角色名分支——
+新增调色板变体零代码，新增结构特征时在 `STYLES` 里声明旗标即可
+（`tools/insync-sprites/generate_sprites.py`）。共享的绘制规则：辫子在躯干
+之后、手臂与包带之前渲染（举臂时手臂在前、不穿模；包盖住发梢），贴脸而下、
+搭肩垂到发绳，行走循环 ±1px 摆动、发绳用角色 accent 色，辫身每两行向外鼓一
+像素读出麻花的阶梯感。
+
+`big_head` 是唯一的比例旗标：头部放大到 y7..31（更大的头骨 + 瓜子脸收窄 + 更
+大更圆的杏眼），躯干压缩到 y32..45，腿变短、鞋加厚，但**落地线与 Momo 保持
+一致**（脚底描边同样在 y59）——桌宠窗口固定 192×256，两个角色必须站在同一条
+地平线上，否则切角色时会显得悬空。`big_head` 目前与 `sleeveless` 搭配（只有
+Nana）：chibi 分支只画无袖领口，帽领/抽绳/口袋仍走 Momo 路径。
 
 逻辑分辨率 48×64，输出 4 倍放大（192×256/帧），
 nearest-neighbor 保证像素锐利。
@@ -50,14 +62,14 @@ nearest-neighbor 保证像素锐利。
 
 | 用途 | 色值 |
 | --- | --- |
-| 描边 | `#3d2c29` |
-| 皮肤 | `#f7d7b8` / 阴影 `#eab890` |
-| 头发主色 | `#6b5147` / 阴影 `#453029` / 高光 `#8d6e58` |
-| 上衣 | `#e3a6ab` / 阴影 `#c98b93` / 包底 `#b57b85` |
+| 描边 | `#6b4f4a` |
+| 皮肤 | `#ffe3c9` / 阴影 `#f3c7a1` |
+| 头发主色 | `#7a5c50` / 阴影 `#523a34` / 高光 `#a07d68` |
+| 上衣 | `#f2b7bd` / 阴影 `#dba0a8` / 包底 `#c48892` |
 | 裤子 | `#6f89b8` / 阴影 `#54709f` |
-| 发绳/accent | `#e0636f` |
-| 腮红 | `#f6b1b1` |
-| 眼睛 | `#3d2c29` / 高光白 `#ffffff` |
+| 发绳/accent | `#ef7280` |
+| 腮红 | `#f79fa4` |
+| 眼睛 | `#5d443f` / 高光白 `#ffffff` |
 
 ## 动画清单（v1，13 个）
 
@@ -99,12 +111,14 @@ nearest-neighbor 保证像素锐利。
 
 1. 在 `generate_sprites.py` 的 `PALETTES` 声明调色板；形状与现有角色一致时
    只需调色板（如 `momo-mint`），有结构性差异时在 `STYLES` 声明 `Style` 旗标
-   （如 nana 的 `braids` / `strap`），绘制函数按旗标分支。
+   （如 nana 的 `braids` / `combed_back` / `big_head`），绘制函数按旗标分支。
 2. 运行 `python3 tools/insync-sprites/generate_sprites.py` 重新生成并核对
    `manifest.json` 新增该角色；`validate_sprites.py` 对 manifest 里的每个角色
    自动执行同样的校验。
-3. `tools/insync-ui/generate_ui_images.py` 的 `CHARACTERS` 加入该角色，重新
-   生成 `{character}_portrait.png` / `{character}_wave.png`。
+3. `tools/insync-ui/generate_ui_images.py` 的 `CHARACTERS` 加入该角色，
+   `PORTRAIT_CROP` 加该角色的头像裁切窗口（比例不同的角色必须有各自的窗口：
+   chibi 头更高，沿用默认窗口会切掉下巴），重新生成
+   `{character}_portrait.png` / `{character}_wave.png`。
 4. `insync-app`：`store::CHARACTERS` 加入角色 id、`assets.rs` 的 `sprite_library`
    用 `sheets!` 内嵌该角色的 13 张表（`from_embedded` 要求 manifest 中每个角色
    的表都在，缺一张即 panic）、`i18n.rs` 加 `character.<id>` 文案。旧数据兼容
@@ -144,6 +158,25 @@ tools/insync-ui/
 与精灵图同理，这两张图也必须与生成器输出一致：CI 的 `assets` 任务运行
 `generate_ui_images.py --check`（内存重新生成后比对**解码像素**，不是字节——zlib
 编码器在 macOS 与 Ubuntu 间不同，像素才是面板真正绘制的东西），漂移即失败。
+
+## 面板视觉验收（真机，用 CI 产物）
+
+`verify_panel.py` 需要真实 macOS 图形会话：用 Quartz 定位 `insync-app` 的面板窗口，
+再以 `screencapture -l <窗口ID>` 截取该窗口并做像素/几何测量。CI runner 没有交互式
+图形会话，也没有屏幕录制授权，这一步只能在开发机上执行——但**不需要本地编译**，
+直接下载 CI 已构建的产物：
+
+```
+gh run list --workflow=insync-verify.yml                # 找到待验收 commit 对应的 run
+gh run download <run-id> -n insync-macos-aarch64 -D /tmp/insync-ci
+python3 tools/insync-ui/verify_panel.py --app /tmp/insync-ci/insync-app --all /tmp/insync-panels
+```
+
+- 产物必须来自与待验收代码相同的 commit，不允许拿旧产物验收新改动。
+- 终端需要屏幕录制权限（系统设置 → 隐私与安全性），否则 `screencapture` 失败或输出全黑。
+- 素材生成与漂移门禁（`generate_sprites.py`、`generate_ui_images.py --check`）不依赖
+  这一步，也不需要任何编译；验收面板外观时不要再在本地 `cargo build`（编译与测试由
+  CI 覆盖）。
 
 ## 禁止
 

@@ -39,10 +39,15 @@ FRAME_W, FRAME_H = 192, 256
 
 CHARACTERS = ("momo", "nana")
 
-# Crop window measured from the momo idle sheet: the head/bust occupies the top
-# square of the figure (the braids start at y=16, the shoulders at y=120). The
-# characters share one silhouette, so the same window crops both.
-PORTRAIT_CROP = (44, 12, 148, 120)
+# Crop window per character, measured from each idle sheet: the head/bust
+# occupies the top square of the figure (momo's shoulders reach y=120; nana's
+# chibi head is taller, so her window starts lower and ends at the shoulder
+# line). The ink is trimmed and rescaled afterwards, so the window only decides
+# how much of the figure the portrait shows.
+PORTRAIT_CROP = {
+    "momo": (44, 12, 148, 120),
+    "nana": (44, 20, 148, 128),
+}
 # The wave animation's frame 1 has the paw raised, which reads as a greeting.
 WAVE_FRAME = 1
 
@@ -101,7 +106,7 @@ def build() -> list[tuple[str, Image.Image]]:
         idle = Image.open(SPRITES / character / "idle.png")
         wave = Image.open(SPRITES / character / "wave.png")
 
-        portrait = crop_to_ink(frame(idle, 0).crop(PORTRAIT_CROP))
+        portrait = crop_to_ink(frame(idle, 0).crop(PORTRAIT_CROP[character]))
         pose = crop_to_ink(frame(wave, WAVE_FRAME))
         images.append((f"{character}_portrait.png", scale(portrait, PORTRAIT_SIZE)))
         images.append((f"{character}_wave.png", scale(pose, WAVE_SIZE)))

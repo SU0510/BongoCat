@@ -7,8 +7,8 @@
 **桌宠（A 组验收）— 已完成**
 
 - 原创像素人物「Momo」（程序化生成、双配色变体 momo / momo-mint，48×64 逻辑分辨率 4x 输出）；
-  新增第二人物「Nana」（按使用者真实照片 redesign：深棕双麻花辫 + 中分空气刘海 +
-  玫瑰粉无袖上衣 + 斜挎包带，绘制按 `Style` 结构旗标分支）。角色可在设置面板切换，
+  新增第二人物「Nana」（按使用者真实照片 redesign：深棕双麻花辫 + 顺发际线向后梳的头发、
+  玫瑰粉无袖上衣 + 斜挎包带，大头短腿 Q 版比例，绘制按 `Style` 结构旗标分支）。角色可在设置面板切换，
   桌宠与面板头像/空态插图同步跟随；旧配置无该字段时默认 Momo 照常启动。
 - 透明置顶无边框窗口（macOS NSPanel / Windows UpdateLayeredWindow），可拖动、位置持久化、50–400% 缩放、多屏坐标钳制、点击穿透开关。
 - 13 个动画：idle / blink / wave / walk / sleep / work / stretch / react / poke_react / message_react / invite_react / celebrate / rest（`tools/insync-sprites/validate_sprites.py` 强制帧数/边距/调色板/循环一致性）。

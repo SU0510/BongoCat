@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """InSync pixel sprite generator.
 
-Draws the original character "Momo" (and palette variants) frame by frame with
-PIL, packs each animation into a horizontal sprite sheet and writes
+Draws the original characters "Momo" (plus palette variants) and "Nana" frame by
+frame with PIL, packs each animation into a horizontal sprite sheet and writes
 ``resources/insync/sprites/manifest.json``. Deterministic: same code, same
 pixels. See docs/insync/sprite-assets.md for the production workflow.
 """
@@ -81,12 +81,12 @@ PALETTES = {
         "paper_line": "#b9a98f",
         "wood": "#c9a678",
     },
-    # The second character: dark warm-brown twin braids with wispy center-parted
-    # bangs, a dusty-pink sleeveless top, a black crossbody strap and jeans —
-    # read off the reference photo, then brightened: the first pass read too
-    # dark/yellow (near-black outline over a yellow skin), so the skin is a
-    # warm ivory, the outline a soft warm brown and the top a rosier pink.
-    # Same silhouette as momo; the style flags below drive the differences.
+    # The second character: dark warm-brown twin braids with the hair combed
+    # back from the hairline (no fringe), a dusty-pink sleeveless top, a black
+    # crossbody strap and jeans — read off the reference photo, then brightened:
+    # the first pass read too dark/yellow (near-black outline over a yellow
+    # skin), so the skin is a warm ivory, the outline a soft warm brown and the
+    # top a rosier pink. The style flags below drive the differences.
     "nana": {
         "outline": "#6b4f4a",
         "skin": "#ffe3c9",
@@ -127,10 +127,10 @@ class Style:
     """
 
     braids: bool = False  # twin braids draping over the shoulders, in front
-    center_part: bool = False  # wispy bangs with a gap at the center
+    combed_back: bool = False  # no bangs: hair follows the hairline down
     sleeveless: bool = False  # bare arms, no drawstrings or pocket
     strap: bool = False  # black crossbody strap over the top
-    soft_face: bool = False  # melon-seed taper instead of the round bob jaw
+    big_head: bool = False  # chibi proportions: huge head, short legs
     ahoge: bool = True  # the little curl on top
 
 
@@ -138,8 +138,8 @@ STYLES = {
     "momo": Style(),
     "momo-mint": Style(),
     "nana": Style(
-        braids=True, center_part=True, sleeveless=True, strap=True,
-        soft_face=True, ahoge=False,
+        braids=True, combed_back=True, sleeveless=True, strap=True,
+        big_head=True, ahoge=False,
     ),
 }
 
@@ -241,8 +241,16 @@ class Pose:
 # ---------------------------------------------------------------------------
 
 
-def draw_hair_back(g: Grid, p: Pose) -> None:
+def draw_hair_back(g: Grid, p: Pose, style: Style) -> None:
     dy = p.bob + p.jump
+    if style.big_head:
+        # short bob behind the neck, down to the shoulders
+        for y in range(25 + dy, 31 + dy):
+            g.hline(13, 34, y, "hair_shadow")
+        g.hline(14, 33, 31 + dy, "hair_shadow")
+        g.vline(13, 25 + dy, 30 + dy, "outline")
+        g.vline(34, 25 + dy, 30 + dy, "outline")
+        return
     # short bob behind the neck, just below the jaw
     for y in range(24 + dy, 30 + dy):
         g.hline(13, 34, y, "hair_shadow")
@@ -253,31 +261,25 @@ def draw_hair_back(g: Grid, p: Pose) -> None:
 
 def draw_head(g: Grid, p: Pose, style: Style) -> None:
     dy, dx = p.bob + p.jump, p.lean
-    if style.soft_face:
-        # melon-seed face: full width through the eyes, then a gentle
-        # two-step taper to a soft rounded chin — no hard jaw corners
-        for y in range(9 + dy, 18 + dy):
+    if style.big_head:
+        # chibi skull: x14..33, y11..21, then a gentle two-step taper to a
+        # soft rounded chin at y31 — the melon-seed face, on a much bigger head
+        for y in range(11 + dy, 22 + dy):
             g.hline(14 + dx, 33 + dx, y, "skin")
-        g.hline(16 + dx, 31 + dx, 7 + dy, "skin")
-        g.hline(15 + dx, 32 + dx, 8 + dy, "skin")
-        for y, x0 in ((18, 15), (19, 15), (20, 16), (21, 16), (22, 17), (23, 17)):
+        for y, x0 in ((22, 15), (23, 15), (24, 16), (25, 16), (26, 17), (27, 17), (28, 18)):
             xr = 47 - x0
             g.hline(x0 + dx, xr + dx, y + dy, "skin")
             g.plot(x0 - 1 + dx, y + dy, "outline")
             g.plot(xr + 1 + dx, y + dy, "outline")
-        # rounded chin
-        g.plot(17 + dx, 24 + dy, "outline")
-        g.plot(18 + dx, 24 + dy, "skin_shadow")
-        g.hline(19 + dx, 28 + dx, 24 + dy, "skin")
-        g.plot(29 + dx, 24 + dy, "skin_shadow")
-        g.plot(30 + dx, 24 + dy, "outline")
-        g.plot(19 + dx, 25 + dy, "outline")
-        g.plot(20 + dx, 25 + dy, "skin_shadow")
-        g.hline(21 + dx, 26 + dx, 25 + dy, "skin")
-        g.plot(27 + dx, 25 + dy, "skin_shadow")
-        g.plot(28 + dx, 25 + dy, "outline")
-        g.hline(21 + dx, 26 + dx, 26 + dy, "outline")
-        g.hline(23 + dx, 24 + dx, 27 + dy, "outline")
+        g.hline(19 + dx, 28 + dx, 29 + dy, "skin")
+        g.plot(18 + dx, 29 + dy, "outline")
+        g.plot(29 + dx, 29 + dy, "outline")
+        g.hline(21 + dx, 26 + dx, 30 + dy, "skin")
+        g.plot(19 + dx, 30 + dy, "outline")
+        g.plot(20 + dx, 30 + dy, "outline")
+        g.plot(27 + dx, 30 + dy, "outline")
+        g.plot(28 + dx, 30 + dy, "outline")
+        g.hline(21 + dx, 26 + dx, 31 + dy, "outline")
     else:
         # skull: x14..33, y8..26
         for y in range(9 + dy, 26 + dy):
@@ -294,51 +296,73 @@ def draw_head(g: Grid, p: Pose, style: Style) -> None:
 
 
 def draw_hair_front(g: Grid, p: Pose, dx: int, dy: int, style: Style) -> None:
+    if style.combed_back:
+        # combed back from the hairline: a smooth dome, the forehead stays
+        # open (no bangs) and the hair follows the hairline down past the
+        # temples into side locks where the braids take over — as in the photo
+        g.hline(20 + dx, 27 + dx, 6 + dy, "hair")
+        g.hline(18 + dx, 29 + dx, 7 + dy, "hair")
+        g.hline(16 + dx, 31 + dx, 8 + dy, "hair")
+        g.hline(15 + dx, 32 + dx, 9 + dy, "hair")
+        g.hline(14 + dx, 33 + dx, 10 + dy, "hair")
+        g.hline(13 + dx, 34 + dx, 11 + dy, "hair")
+        g.hline(13 + dx, 34 + dx, 12 + dy, "hair")
+        # the hairline: the hair's front edge follows the hairline — highest in
+        # the middle of the forehead, sweeping down over the temples
+        g.hline(13 + dx, 20 + dx, 13 + dy, "hair")
+        g.hline(27 + dx, 34 + dx, 13 + dy, "hair")
+        g.hline(13 + dx, 18 + dx, 14 + dy, "hair")
+        g.hline(29 + dx, 34 + dx, 14 + dy, "hair")
+        g.hline(13 + dx, 16 + dx, 15 + dy, "hair")
+        g.hline(31 + dx, 34 + dx, 15 + dy, "hair")
+        # side locks gathering down past the temples to the ear
+        g.vline(13 + dx, 10 + dy, 21 + dy, "hair")
+        g.vline(14 + dx, 16 + dy, 21 + dy, "hair")
+        g.vline(34 + dx, 10 + dy, 21 + dy, "hair")
+        g.vline(33 + dx, 16 + dy, 21 + dy, "hair")
+        # silhouette outline
+        g.hline(19 + dx, 28 + dx, 5 + dy, "outline")
+        g.plot(19 + dx, 6 + dy, "outline")
+        g.plot(28 + dx, 6 + dy, "outline")
+        g.plot(17 + dx, 7 + dy, "outline")
+        g.plot(30 + dx, 7 + dy, "outline")
+        g.plot(15 + dx, 8 + dy, "outline")
+        g.plot(32 + dx, 8 + dy, "outline")
+        g.plot(14 + dx, 9 + dy, "outline")
+        g.plot(33 + dx, 9 + dy, "outline")
+        g.plot(13 + dx, 10 + dy, "outline")
+        g.plot(34 + dx, 10 + dy, "outline")
+        g.vline(12 + dx, 11 + dy, 21 + dy, "outline")
+        g.vline(35 + dx, 11 + dy, 21 + dy, "outline")
+        # shine
+        g.hline(19 + dx, 25 + dx, 8 + dy, "hair_light")
+        g.hline(20 + dx, 24 + dx, 9 + dy, "hair_light")
+        g.plot(34 + dx, 13 + dy, "hair_light")
+        return
     # top mass: rounded, y6..11
     g.hline(19 + dx, 28 + dx, 5 + dy, "hair")
     g.hline(17 + dx, 30 + dx, 6 + dy, "hair")
     for y in range(7 + dy, 12 + dy):
         g.hline(14 + dx, 33 + dx, y, "hair")
-    if style.center_part:
-        # wispy bangs, parted at the center: the gap widens downward and the
-        # sweep grows toward the sides, like the reference's curtain bangs
-        g.hline(15 + dx, 22 + dx, 12 + dy, "hair")
-        g.hline(25 + dx, 32 + dx, 12 + dy, "hair")
-        g.hline(15 + dx, 19 + dx, 13 + dy, "hair")
-        g.hline(28 + dx, 32 + dx, 13 + dy, "hair")
-        g.plot(16 + dx, 14 + dy, "hair")
-        g.plot(31 + dx, 14 + dy, "hair")
-        g.hline(17 + dx, 22 + dx, 13 + dy, "hair_shadow")
-        g.hline(25 + dx, 30 + dx, 13 + dy, "hair_shadow")
-        g.plot(17 + dx, 14 + dy, "skin_shadow")
-        g.plot(30 + dx, 14 + dy, "skin_shadow")
-    else:
-        # bangs bottom edge with fringe tips
-        g.hline(15 + dx, 32 + dx, 12 + dy, "hair")
-        for tip in (16, 20, 24, 28):
-            g.vline(tip + dx, 13 + dy, 14 + dy, "hair")
-        g.vline(32 + dx, 13 + dy, 14 + dy, "hair")
-        # shadow right under the bangs
-        g.hline(16 + dx, 31 + dx, 13 + dy, "hair_shadow")
-        for tip in (16, 20, 24, 28):
-            g.plot(tip + dx, 15 + dy, "skin_shadow")
-        g.plot(32 + dx, 15 + dy, "skin_shadow")
-    if style.braids:
-        # side locks stop where the braids take over
-        g.vline(13 + dx, 9 + dy, 17 + dy, "hair")
-        g.vline(14 + dx, 11 + dy, 17 + dy, "hair")
-        g.vline(34 + dx, 9 + dy, 17 + dy, "hair")
-        g.vline(33 + dx, 11 + dy, 17 + dy, "hair")
-    else:
-        # side locks framing the face, ending at the jaw
-        g.vline(13 + dx, 9 + dy, 22 + dy, "hair")
-        g.vline(14 + dx, 11 + dy, 24 + dy, "hair")
-        g.plot(15 + dx, 23 + dy, "hair")
-        g.plot(15 + dx, 24 + dy, "hair")
-        g.vline(34 + dx, 9 + dy, 22 + dy, "hair")
-        g.vline(33 + dx, 11 + dy, 24 + dy, "hair")
-        g.plot(32 + dx, 23 + dy, "hair")
-        g.plot(32 + dx, 24 + dy, "hair")
+    # bangs bottom edge with fringe tips
+    g.hline(15 + dx, 32 + dx, 12 + dy, "hair")
+    for tip in (16, 20, 24, 28):
+        g.vline(tip + dx, 13 + dy, 14 + dy, "hair")
+    g.vline(32 + dx, 13 + dy, 14 + dy, "hair")
+    # shadow right under the bangs
+    g.hline(16 + dx, 31 + dx, 13 + dy, "hair_shadow")
+    for tip in (16, 20, 24, 28):
+        g.plot(tip + dx, 15 + dy, "skin_shadow")
+    g.plot(32 + dx, 15 + dy, "skin_shadow")
+    # side locks framing the face, ending at the jaw
+    g.vline(13 + dx, 9 + dy, 22 + dy, "hair")
+    g.vline(14 + dx, 11 + dy, 24 + dy, "hair")
+    g.plot(15 + dx, 23 + dy, "hair")
+    g.plot(15 + dx, 24 + dy, "hair")
+    g.vline(34 + dx, 9 + dy, 22 + dy, "hair")
+    g.vline(33 + dx, 11 + dy, 24 + dy, "hair")
+    g.plot(32 + dx, 23 + dy, "hair")
+    g.plot(32 + dx, 24 + dy, "hair")
     # bob silhouette outline
     g.hline(18 + dx, 29 + dx, 4 + dy, "outline")
     g.plot(17 + dx, 5 + dy, "outline")
@@ -351,21 +375,16 @@ def draw_hair_front(g: Grid, p: Pose, dx: int, dy: int, style: Style) -> None:
     g.plot(33 + dx, 8 + dy, "outline")
     g.plot(13 + dx, 9 + dy, "outline")
     g.plot(34 + dx, 9 + dy, "outline")
-    if style.braids:
-        # the outline hands off to the braid edges below the ears
-        g.vline(12 + dx, 10 + dy, 15 + dy, "outline")
-        g.vline(35 + dx, 10 + dy, 15 + dy, "outline")
-    else:
-        g.vline(12 + dx, 10 + dy, 21 + dy, "outline")
-        g.vline(35 + dx, 10 + dy, 21 + dy, "outline")
-        g.plot(12 + dx, 22 + dy, "outline")
-        g.plot(35 + dx, 22 + dy, "outline")
-        g.hline(13 + dx, 13 + dx, 25 + dy, "outline")
-        g.hline(34 + dx, 34 + dx, 25 + dy, "outline")
-        g.plot(14 + dx, 24 + dy, "outline")
-        g.plot(33 + dx, 24 + dy, "outline")
-        g.plot(15 + dx, 25 + dy, "outline")
-        g.plot(32 + dx, 25 + dy, "outline")
+    g.vline(12 + dx, 10 + dy, 21 + dy, "outline")
+    g.vline(35 + dx, 10 + dy, 21 + dy, "outline")
+    g.plot(12 + dx, 22 + dy, "outline")
+    g.plot(35 + dx, 22 + dy, "outline")
+    g.hline(13 + dx, 13 + dx, 25 + dy, "outline")
+    g.hline(34 + dx, 34 + dx, 25 + dy, "outline")
+    g.plot(14 + dx, 24 + dy, "outline")
+    g.plot(33 + dx, 24 + dy, "outline")
+    g.plot(15 + dx, 25 + dy, "outline")
+    g.plot(32 + dx, 25 + dy, "outline")
     # shine
     g.hline(18 + dx, 24 + dx, 7 + dy, "hair_light")
     g.hline(19 + dx, 23 + dx, 8 + dy, "hair_light")
@@ -379,7 +398,7 @@ def draw_hair_front(g: Grid, p: Pose, dx: int, dy: int, style: Style) -> None:
         g.plot(24 + dx, 4 + dy, "outline")
 
 
-def draw_braids(g: Grid, p: Pose) -> None:
+def draw_braids(g: Grid, p: Pose, style: Style) -> None:
     """Twin braids draping over the shoulders, in front of the chest.
 
     A short strand continues each side lock down beside the face, then the
@@ -395,6 +414,13 @@ def draw_braids(g: Grid, p: Pose) -> None:
     sway = (p.prop_phase % 2) if p.legs in ("walk_a", "walk_b") else 0
     dx = p.lean
     dy = p.bob + p.jump
+    if style.big_head:
+        # the chibi head is wider and its chin sits at y31, so the strand
+        # starts lower (at the ear) and hugs the tapering cheek before the
+        # drape crosses the shoulder
+        conn_y0, conn_y1, drape_y0, conn_widen_y = 22, 26, 27, 25
+    else:
+        conn_y0, conn_y1, drape_y0, conn_widen_y = 18, 23, 24, 22
     tie_y = 40
     twist = [0, 1, 2, 1]  # shadow column index within the 3-wide strand
     for side in ("l", "r"):
@@ -404,32 +430,39 @@ def draw_braids(g: Grid, p: Pose) -> None:
             conn_wide = 15 + dx  # the lock widens where the jaw tapers in
             conn_edge = 12 + dx
             drape = (15 + sx, 16 + sx, 17 + sx)  # over the shoulder, in front
-            edge = 14 + sx
+            out_step = -1
         else:
             conn = (34 + dx, 33 + dx)
             conn_wide = 32 + dx
             conn_edge = 35 + dx
             drape = (32 + sx, 31 + sx, 30 + sx)
-            edge = 33 + sx
+            out_step = 1
 
         # strand down the side of the face, continuing the side lock
-        for y in range(18, 24):
+        for y in range(conn_y0, conn_y1 + 1):
             for x in conn:
                 g.plot(x, y + dy, "hair")
-            if y >= 22:
+            if y >= conn_widen_y:
                 g.plot(conn_wide, y + dy, "hair")
-        g.vline(conn_edge, 16 + dy, 23 + dy, "outline")
+        g.vline(conn_edge, conn_y0 - 2 + dy, conn_y1 + dy, "outline")
         # drape in front of the chest, down to the tie
-        for i, y in enumerate(range(24, tie_y)):
+        outer = drape[0]  # the column away from the body's centre
+        for i, y in enumerate(range(drape_y0, tie_y)):
             phase = i % 4
             for x in drape:
                 g.plot(x, y + dy, "hair")
+            if phase >= 2:
+                # the plait bulges outward every other pair of rows, which is
+                # what makes it read as braided rather than as a lock
+                g.plot(outer + out_step, y + dy, "hair")
+                g.plot(outer + 2 * out_step, y + dy, "outline")
+            else:
+                g.plot(outer + out_step, y + dy, "outline")
             g.plot(drape[twist[phase]], y + dy, "hair_shadow")
             if phase == 0:
                 g.plot(drape[0], y + dy, "hair_light")
             elif phase == 2:
                 g.plot(drape[2], y + dy, "hair_light")
-            g.plot(edge, y + dy, "outline")
         # hair tie and the tapering tip
         for x in drape:
             g.plot(x, tie_y + dy, "accent")
@@ -439,13 +472,20 @@ def draw_braids(g: Grid, p: Pose) -> None:
 
 
 def draw_face(g: Grid, p: Pose, dx: int, dy: int, style: Style) -> None:
-    eye_y = 17 + dy
+    # the chibi face sits lower in its much taller head, with more room
+    # between the eyes and the chin
+    eye_y = (19 if style.big_head else 17) + dy
     if p.eyes == "open":
+        eye_h = 3 if style.big_head else 2  # the chibi has taller, rounder eyes
         for ex in (17, 28):
-            g.rect(ex + dx, eye_y, ex + 2 + dx, eye_y + 2, "eye")
+            if style.big_head:
+                g.hline(ex + 1 + dx, ex + 2 + dx, eye_y, "eye")
+                g.rect(ex + dx, eye_y + 1, ex + 2 + dx, eye_y + eye_h, "eye")
+            else:
+                g.rect(ex + dx, eye_y, ex + 2 + dx, eye_y + eye_h, "eye")
             g.plot(ex + 2 + dx, eye_y, "white")
             g.plot(ex + 1 + dx, eye_y, "white")
-            if style.soft_face:
+            if style.big_head:
                 g.plot(ex + 2 + dx, eye_y + 1, "white")
     elif p.eyes == "wide":
         for ex in (17, 28):
@@ -464,7 +504,7 @@ def draw_face(g: Grid, p: Pose, dx: int, dy: int, style: Style) -> None:
             g.plot(ex + dx, eye_y + 2, "eye")
             g.plot(ex + 1 + dx, eye_y + 1, "eye")
             g.plot(ex + 2 + dx, eye_y + 2, "eye")
-    mouth_y = 22 + dy
+    mouth_y = (26 if style.big_head else 22) + dy
     if p.mouth == "smile":
         g.plot(23 + dx, mouth_y, "eye")
         g.plot(24 + dx, mouth_y + 1, "eye")
@@ -481,10 +521,10 @@ def draw_face(g: Grid, p: Pose, dx: int, dy: int, style: Style) -> None:
         g.plot(26 + dx, mouth_y, "eye")
         g.plot(24 + dx, mouth_y + 1, "white")
     if p.blush:
-        if style.soft_face:
-            # on the tapering cheek, a row under each eye
-            g.hline(16 + dx, 18 + dx, 20 + dy, "blush")
-            g.hline(29 + dx, 31 + dx, 20 + dy, "blush")
+        if style.big_head:
+            # a soft tick under the outer corner of each eye
+            g.hline(16 + dx, 17 + dx, 24 + dy, "blush")
+            g.hline(30 + dx, 31 + dx, 24 + dy, "blush")
         else:
             g.hline(15 + dx, 16 + dx, 21 + dy, "blush")
             g.hline(31 + dx, 32 + dx, 21 + dy, "blush")
@@ -492,6 +532,30 @@ def draw_face(g: Grid, p: Pose, dx: int, dy: int, style: Style) -> None:
 
 def draw_torso(g: Grid, p: Pose, style: Style) -> None:
     dy = p.bob + p.jump
+    if style.big_head:
+        # chibi body: the same hem as momo but five rows shorter, tucked under
+        # the huge head — x15..32, y32..45
+        for y in range(32 + dy, 45 + dy):
+            g.hline(15, 32, y, "hoodie")
+        g.hline(16, 31, 31 + dy, "hoodie_shadow")  # shoulder line behind the neck
+        g.vline(31, 33 + dy, 44 + dy, "hoodie_shadow")
+        g.hline(15, 32, 45 + dy, "hoodie_shadow")  # hem
+        if style.sleeveless:
+            # scoop neckline: a sliver of skin between the jaw and the collar
+            g.hline(22, 25, 32 + dy, "skin")
+            g.hline(23, 24, 33 + dy, "skin")
+            g.plot(22, 33 + dy, "hoodie_shadow")
+            g.plot(25, 33 + dy, "hoodie_shadow")
+        # body outline
+        g.vline(14, 32 + dy, 45 + dy, "outline")
+        g.vline(33, 32 + dy, 45 + dy, "outline")
+        g.plot(14, 31 + dy, "outline")
+        g.plot(33, 31 + dy, "outline")
+        g.hline(15, 32, 46 + dy, "outline")
+        g.hline(16, 31, 47 + dy, "outline")
+        g.plot(15, 46 + dy, "outline")
+        g.plot(32, 46 + dy, "outline")
+        return
     # top body: x15..32, y27..47
     for y in range(28 + dy, 46 + dy):
         g.hline(15, 32, y, "hoodie")
@@ -541,6 +605,9 @@ def draw_arm(g: Grid, p: Pose, side: str, style: Style) -> None:
     # bare arms for the sleeveless style, with a fabric cap at the shoulder
     fill = "skin" if style.sleeveless else "hoodie"
     shade = "skin_shadow" if style.sleeveless else "hoodie_shadow"
+    if style.big_head:
+        draw_arm_big(g, p, side, pose, fill, shade, dy)
+        return
     cap_start, cap_end = None, None
     if style.sleeveless:
         if pose == "down":
@@ -653,7 +720,115 @@ def draw_arm(g: Grid, p: Pose, side: str, style: Style) -> None:
             g.hline(x0, x1, cap_end + dy, "hoodie")
 
 
-def draw_strap(g: Grid, p: Pose) -> None:
+def draw_arm_big(g: Grid, p: Pose, side: str, pose: str, fill: str, shade: str,
+                 dy: int) -> None:
+    """Chibi arms: the shoulder sits at y32 under the huge head, so each pose
+    is drawn a few rows lower and a couple of rows shorter than momo's. A
+    hoodie cap (short sleeve) marks the shoulder end of bare arms.
+    """
+    x0, x1 = (11, 13) if side == "l" else (34, 36)
+    outer = x0 if side == "l" else x1
+    inner = x0 + 1 if side == "l" else x0
+    if pose == "down":
+        for y in range(33 + dy, 43 + dy):
+            g.hline(x0, x1, y, fill)
+        g.hline(x0, x1, 43 + dy, shade)
+        g.vline(outer, 33 + dy, 43 + dy, "outline")
+        g.hline(inner, x1, 32 + dy, "outline")
+        g.hline(x0, x1, 44 + dy, "outline")
+        g.rect(inner, 42 + dy, x1, 43 + dy, "skin")
+        g.hline(x0, x1, 33 + dy, "hoodie")
+        g.hline(x0, x1, 35 + dy, "hoodie")
+    elif pose == "up":
+        for y in range(22 + dy, 32 + dy):
+            g.hline(x0, x1, y, fill)
+        g.vline(outer, 22 + dy, 31 + dy, "outline")
+        g.hline(x0, x1, 32 + dy, "outline")
+        g.hline(inner, x1, 21 + dy, "outline")
+        g.rect(inner, 19 + dy, x1, 20 + dy, "skin")
+        g.hline(x0, x1, 29 + dy, "hoodie")
+        g.hline(x0, x1, 31 + dy, "hoodie")
+    elif pose == "stretch":
+        for y in range(22 + dy, 33 + dy):
+            g.hline(x0, x1, y, fill)
+        g.vline(outer, 22 + dy, 32 + dy, "outline")
+        g.hline(x0, x1, 33 + dy, "outline")
+        g.hline(inner, x1, 21 + dy, "outline")
+        g.rect(inner, 18 + dy, x1, 20 + dy, "skin")
+        g.plot(outer if side == "l" else x1 + 1, 18 + dy, "skin")
+        g.plot(outer if side == "l" else x1 + 1, 19 + dy, "skin")
+        g.hline(x0, x1, 29 + dy, "hoodie")
+        g.hline(x0, x1, 31 + dy, "hoodie")
+    elif pose == "wave":
+        if side == "l":
+            return
+        phase = p.prop_phase % 2
+        hy = 27 + dy - phase
+        for y in range(hy, hy + 3):
+            g.hline(33, 38, y, fill)
+        g.hline(33, 38, hy + 3, shade)
+        g.hline(33, 38, hy - 1, "outline")
+        g.hline(34, 38, hy + 4, "outline")
+        g.vline(33, hy, hy + 4, "outline")
+        g.vline(38, hy, hy + 4, "outline")
+        g.rect(37, hy - 3, 39, hy - 1, "skin")
+        g.plot(39, hy - 4, "skin")
+        g.hline(37, 39, hy - 4, "outline")
+        g.plot(40, hy - 2, "outline")
+    elif pose == "forward":
+        if side == "l":
+            for x in range(15, 21):
+                g.hline(x, x, 38 + dy, fill)
+            g.hline(15, 21, 37 + dy, fill)
+            g.hline(15, 21, 39 + dy, shade)
+            g.hline(15, 20, 36 + dy, "outline")
+            g.hline(15, 20, 40 + dy, "outline")
+            g.rect(20, 37 + dy, 21, 39 + dy, "skin")
+        else:
+            for x in range(27, 33):
+                g.hline(x, x, 38 + dy, fill)
+            g.hline(26, 32, 37 + dy, fill)
+            g.hline(26, 32, 39 + dy, shade)
+            g.hline(27, 32, 36 + dy, "outline")
+            g.hline(27, 32, 40 + dy, "outline")
+            g.rect(26, 37 + dy, 27, 39 + dy, "skin")
+    elif pose == "book":
+        if side == "l":
+            for x in range(14, 20):
+                g.hline(x, x, 36 + dy, fill)
+            g.hline(14, 19, 35 + dy, fill)
+            g.hline(14, 19, 37 + dy, shade)
+            g.hline(14, 18, 34 + dy, "outline")
+            g.hline(14, 18, 38 + dy, "outline")
+            g.rect(18, 35 + dy, 19, 37 + dy, "skin")
+        else:
+            for x in range(28, 34):
+                g.hline(x, x, 36 + dy, fill)
+            g.hline(28, 33, 35 + dy, fill)
+            g.hline(28, 33, 37 + dy, shade)
+            g.hline(29, 33, 34 + dy, "outline")
+            g.hline(29, 33, 38 + dy, "outline")
+            g.rect(28, 35 + dy, 29, 37 + dy, "skin")
+    elif pose == "flail":
+        if side == "l":
+            for x, y in [(13, 32 + dy), (12, 30 + dy), (11, 28 + dy), (11, 26 + dy)]:
+                g.hline(x, x + 1, y, fill)
+            g.rect(10, 23 + dy, 11, 25 + dy, "skin")
+        else:
+            for x, y in [(34, 32 + dy), (35, 30 + dy), (36, 28 + dy), (36, 26 + dy)]:
+                g.hline(x - 1, x, y, fill)
+            g.rect(36, 23 + dy, 37, 25 + dy, "skin")
+    elif pose == "cup":
+        if side == "l":
+            return
+        for x in range(29, 34):
+            g.hline(x, x, 36 + dy, fill)
+        g.hline(29, 33, 35 + dy, fill)
+        g.hline(29, 33, 37 + dy, shade)
+        g.rect(32, 38 + dy, 33, 39 + dy, "skin")
+
+
+def draw_strap(g: Grid, p: Pose, style: Style) -> None:
     """The black crossbody strap with its bag: over the right shoulder
     (viewer's), bag at the left hip, matching the reference.
 
@@ -662,10 +837,17 @@ def draw_strap(g: Grid, p: Pose) -> None:
     clothes.
     """
     dy = p.bob + p.jump
-    for y in range(27, 44):
-        x = 31 - (y - 27) * 16 // 17
-        g.plot(x, y + dy, "strap")
-        g.plot(x + 1, y + dy, "strap")
+    if style.big_head:
+        # over the chibi torso: shoulder y32 down to the bag, one row steeper
+        for y in range(32, 45):
+            x = 31 - (y - 32) * 15 // 12
+            g.plot(x, y + dy, "strap")
+            g.plot(x + 1, y + dy, "strap")
+    else:
+        for y in range(27, 44):
+            x = 31 - (y - 27) * 16 // 17
+            g.plot(x, y + dy, "strap")
+            g.plot(x + 1, y + dy, "strap")
     # the bag at the strap's low end, hanging at the hip
     g.rect(14, 42 + dy, 19, 46 + dy, "strap")
     g.rect(14, 42 + dy, 19, 43 + dy, "hoodie_deep")
@@ -674,8 +856,43 @@ def draw_strap(g: Grid, p: Pose) -> None:
     g.plot(17, 47 + dy, "outline")
 
 
-def draw_legs(g: Grid, p: Pose) -> None:
+def draw_legs(g: Grid, p: Pose, style: Style) -> None:
     jl = p.jump
+    if style.big_head:
+        # chibi legs: short and stubby, with chunky shoes; the planted foot
+        # still lands on momo's baseline (outline row y59) so the two
+        # characters stand on the same floor
+        if p.legs == "sit":
+            g.hline(18, 29, 48 + jl, "pants")
+            g.hline(18, 29, 49 + jl, "pants")
+            g.hline(19, 28, 50 + jl, "pants_shadow")
+            g.hline(17, 30, 51 + jl, "shoe")
+            g.hline(17, 30, 52 + jl, "shoe")
+            g.hline(17, 30, 53 + jl, "outline")
+            g.vline(18, 48 + jl, 49 + jl, "outline")
+            g.vline(29, 48 + jl, 49 + jl, "outline")
+            return
+        if p.legs == "walk_a":
+            left = (19, 22, 48, 53)
+            right = (25, 28, 49, 56)
+        elif p.legs == "walk_b":
+            left = (19, 22, 49, 56)
+            right = (25, 28, 48, 53)
+        else:
+            left = (19, 22, 48, 56)
+            right = (25, 28, 48, 56)
+        for x0, x1, y0, y1 in (left, right):
+            for y in range(y0, y1 + 1):
+                g.hline(x0, x1, y, "pants")
+            g.vline(x1, y0, y1, "pants_shadow")
+            g.vline(x0, y0, y1, "outline")
+            g.vline(x1, y0, y1, "outline")
+            g.hline(x0, x1, y1 + 1, "shoe")
+            g.hline(x0, x1, y1 + 2, "shoe")
+            g.hline(x0, x1, y1 + 3, "outline")
+            g.plot(x0 - 1, y1 + 3, "outline")
+            g.plot(x1 + 1, y1 + 3, "outline")
+        return
     if p.legs == "sit":
         g.hline(18, 29, 47 + jl, "pants")
         g.hline(18, 29, 48 + jl, "pants")
@@ -711,7 +928,7 @@ def draw_legs(g: Grid, p: Pose) -> None:
 # ---------------------------------------------------------------------------
 
 
-def draw_props(g: Grid, p: Pose) -> None:
+def draw_props(g: Grid, p: Pose, style: Style) -> None:
     phase = p.prop_phase
     for prop in p.props:
         if prop == "zzz":
@@ -727,7 +944,9 @@ def draw_props(g: Grid, p: Pose) -> None:
             g.vline(38, 6, 9, "star")
             g.plot(38, 11, "star")
         elif prop == "envelope":
-            draw_envelope(g, 19, 32 + p.bob + p.jump, phase)
+            # held at the chest: lower on the chibi, whose chest starts lower
+            y0 = 36 if style.big_head else 32
+            draw_envelope(g, 19, y0 + p.bob + p.jump, phase)
         elif prop == "clock":
             draw_clock(g, 36, 8 + phase % 2)
         elif prop == "confetti":
@@ -1018,17 +1237,17 @@ ANIMATIONS: dict[str, dict] = {
 
 def render_frame(pose: Pose, pal: dict[str, str], style: Style) -> Image.Image:
     g = Grid(FRAME_W, FRAME_H)
-    draw_hair_back(g, pose)
-    draw_legs(g, pose)
+    draw_hair_back(g, pose, style)
+    draw_legs(g, pose, style)
     draw_torso(g, pose, style)
     if style.braids:
-        draw_braids(g, pose)
+        draw_braids(g, pose, style)
     draw_arm(g, pose, "l", style)
     draw_arm(g, pose, "r", style)
     if style.strap:
-        draw_strap(g, pose)
+        draw_strap(g, pose, style)
     draw_head(g, pose, style)
-    draw_props(g, pose)
+    draw_props(g, pose, style)
     g.translate(0, 2)
     return g.to_image(pal)
 
