@@ -7,24 +7,26 @@
 - [x] A1 源码审计 + 架构决策（ADR-0089/0090/0091、docs/insync/technical-design.md、protocol.md、sprite-assets.md）
 - [x] A2 素材生成管线：`tools/insync-sprites/{generate,validate,preview}_sprites.py`，13 个动画全绿（`validate_sprites.py` OK；CI 任务 `assets` 防漂移）；提醒音 `tools/insync-audio/{generate,validate}_alarm.py`（纯 stdlib 确定性合成，`generate_alarm.py --check` 字节比对 + `validate_alarm.py` 校验格式/电平/音高，由同一 CI 任务执行）
 - [x] A3 `insync-sprite`：manifest 加载、帧计算、优先级状态机、随机行为（13 个单元测试通过）
-- [x] A4 新角色「Nana」（按使用者真实照片 redesign，发型优先：深棕双麻花辫 +
-  贴发际线向后梳的头发，保留玫瑰粉无袖上衣与斜挎包带特征）：生成器加 `Style` 结构旗标
-  （`braids` / `combed_back` / `sleeveless` / `strap` / `big_head` / `ahoge`），绘制函数按旗标
+- [x] A4 新角色「Nana」（按使用者真实照片 redesign：深棕色双麻花辫搭在肩膀身前、
+  中分空气刘海、玫瑰粉无袖上衣与斜挎包带）：生成器加 `Style` 结构旗标
+  （`braids` / `center_part` / `sleeveless` / `strap` / `soft_face` / `ahoge`），绘制函数按旗标
   分支而非角色名分支——momo/mint 输出经 4x 最近邻像素比对确认零漂移。第一版
   观感发黄发黑、辫子垂在身后两侧，按使用者反馈返工：肤色提亮为暖 ivory + 软暖褐
-  描边，瓜子脸（渐收轮廓、圆润下巴），辫子贴脸而下、搭在肩膀身前垂到发绳
-  （渲染顺序：躯干后、手臂/包带前，举臂不穿模，包盖发梢）。第二轮反馈：头发并非
-  中分刘海而是顺发际线梳下（额中露出、发际线向太阳穴下探成弧线，鬓角汇入辫子），
-  并改为 Q 版大头短腿 chibi 比例（`big_head`：头 y5..31、躯干 y32..45、短腿厚鞋，
-  落地线仍与 Momo 同在 y59，避免切角色时悬空）；辫身每两行外鼓一像素读出麻花
-  阶梯感。第三轮反馈（额头太大、脸不还原、不够可爱）：发团压到 y16、额前只留
-  2–3 行皮肤（x21..26 起向下加宽的窄拱），y20 起两侧各 3 像素鬓发把脸框到 16
-  像素宽，脸颊保持饱满、五行短收到小下巴，眼睛改为 3×4 竖长杏眼 + 上排两像素
-  高光，腮红下移到 y25、嘴到 y27。验证：`validate_sprites.py` 对 manifest
-  三个角色全绿；`check_pixel_drift.py`（重新生成到临时目录后逐像素比对）报告无
-  漂移；momo / momo-mint 的 26 张精灵图与 `momo_*` 两张裁切图都没有出现在
-  `git status` 里，本次改动只落在 nana 的 13 个动画与 2 张裁切图上；面板裁切图
-  由 `generate_ui_images.py --check` 覆盖漂移（nana 用自己的 `PORTRAIT_CROP`）。
+  描边，`soft_face` 瓜子脸（眼睛一行保持整脸宽度、两段轻收到圆润小下巴、下巴
+  不留硬角），辫子贴脸而下、搭在肩膀身前垂到发绳（渲染顺序：躯干后、手臂/包带前，
+  举臂不穿模，包盖发梢）；辫身每两行外鼓一像素读出麻花阶梯感。
+  **2026-10-12 回退**：此后又做了两轮改动——Q 版大头短腿比例（`big_head`，头
+  y5..31、躯干 y32..45、短腿厚鞋，落地线仍在 y59，避免切角色时悬空）与「顺发际线
+  向后梳、无刘海」发型（`combed_back`）——使用者看过安装版后判定**越改越不对**
+  （「完全不还原」「额头很大」），要求回到两轮之前，于是这两组旗标与其素材整体
+  撤掉：`tools/insync-sprites/generate_sprites.py`、`tools/insync-ui/generate_ui_images.py`、
+  nana 的 13 张精灵图与 2 张裁切图都从 `a76a7a4c` 原样取回
+  （`git diff a76a7a4c -- <这些路径> resources/insync` 为空）。验证：`validate_sprites.py`
+  对 manifest 三个角色全绿；`check_pixel_drift.py`（重新生成到临时目录后逐像素
+  比对）报告无漂移；`generate_ui_images.py --check` 四张裁切图全部与重新生成一致；
+  momo / momo-mint 的 26 张精灵图自始至终未被触及。**遗留**：使用者此前提出的
+  「头发是顺着发际线梳下来的」在回退后**未实现**（回退版是中分空气刘海）——下一轮
+  若仍要做，只改发型这一处、在 v1 脸型之上单独提交，并先交使用者确认。
   审美本身仍待使用者人眼确认（final-report §8.1）。
 
 ## Phase B — 桌宠窗口
