@@ -3,6 +3,14 @@
 //! panel setup mirrors the values proven by `bongocat-overlay` (level,
 //! collection behavior, transparency), minus the Metal surface.
 //!
+//! Hit testing is per pixel, the way a layered window behaves on Windows.
+//! AppKit only has all-or-nothing `setIgnoresMouseEvents`, so the panel flips
+//! that flag from the frame's own alpha (see `HitTest`) and the content view
+//! then checks each press against the same alpha: the pet only reacts to
+//! clicks on pixels it is actually drawn on, and only a press that starts
+//! there can move it. Everywhere else the click reaches whatever is behind
+//! the window.
+//!
 //! Thread model: all ObjC work happens on the main thread. Methods callable
 //! from any thread enqueue [`Command`]s; the application calls
 //! [`MacPetWindow::apply_pending`] once per frame tick on the main thread
@@ -17,7 +25,7 @@ use objc2::runtime::AnyObject;
 use objc2::runtime::NSObjectProtocol;
 use objc2::{DefinedClass, MainThreadOnly, define_class, msg_send};
 use objc2_app_kit::{
-    NSApplication, NSBackingStoreType, NSColor, NSPanel, NSScreen, NSView,
+    NSApplication, NSBackingStoreType, NSColor, NSEvent, NSPanel, NSScreen, NSView,
     NSWindowAnimationBehavior, NSWindowCollectionBehavior, NSWindowStyleMask,
 };
 use objc2_core_foundation::CFData;
@@ -36,6 +44,10 @@ use std::sync::{Arc, Mutex};
 
 struct PetViewIvars {
     delegate: Arc<dyn PetWindowDelegate>,
+    hit: Arc<Mutex<HitTest>>,
+    /// Where the button went down, in window points: the click/drag
+    /// threshold is measured against it. `None` while no press that started
+    /// on the pet is in flight.
     press_location: Mutex<Option<(f64, f64)>>,
 }
 
@@ -50,12 +62,26 @@ define_class!(
         #[unsafe(method(mouseDown:))]
         fn mouse_down(&self, event: &objc2_app_kit::NSEvent) {
             let location = event.locationInWindow();
-            let mut press = self
+            let on_pet = self.press_is_on_pet(location);
+            // Dragging stays AppKit's own background drag, but whether the
+            // window may take part is decided for each press: one that starts
+            // on a transparent pixel must not move the pet, and every press
+            // re-decides, so a gesture that ends without reaching us cannot
+            // leave the window stuck.
+            if let Some(window) = self.window() {
+                window.setMovableByWindowBackground(on_pet);
+            }
+            if !on_pet {
+                // A press on a transparent pixel is not the pet's: nothing is
+                // recorded, so the release cannot turn it into a click.
+                return;
+            }
+            *self
                 .ivars()
                 .press_location
                 .lock()
-                .unwrap_or_else(std::sync::PoisonError::into_inner);
-            *press = Some((location.x, location.y));
+                .unwrap_or_else(std::sync::PoisonError::into_inner) =
+                Some((location.x, location.y));
         }
 
         #[unsafe(method(mouseUp:))]
@@ -80,16 +106,24 @@ define_class!(
         }
 
         #[unsafe(method(rightMouseDown:))]
-        fn right_mouse_down(&self, _event: &objc2_app_kit::NSEvent) {
+        fn right_mouse_down(&self, event: &objc2_app_kit::NSEvent) {
+            if !self.press_is_on_pet(event.locationInWindow()) {
+                return;
+            }
             self.ivars().delegate.on_event(PetWindowEvent::RightClicked);
         }
     }
 );
 
 impl PetView {
-    fn new(mtm: MainThreadMarker, delegate: Arc<dyn PetWindowDelegate>) -> Retained<Self> {
+    fn new(
+        mtm: MainThreadMarker,
+        delegate: Arc<dyn PetWindowDelegate>,
+        hit: Arc<Mutex<HitTest>>,
+    ) -> Retained<Self> {
         let this = <Self as MainThreadOnly>::alloc(mtm).set_ivars(PetViewIvars {
             delegate,
+            hit,
             press_location: Mutex::new(None),
         });
         // SAFETY: `this` is a partially-initialized NSView subclass whose
@@ -98,6 +132,19 @@ impl PetView {
         let initialized: Retained<Self> =
             unsafe { msg_send![super(this), initWithFrame: NSRect::ZERO] };
         initialized
+    }
+
+    /// Whether a point in window coordinates lands on a drawn pixel of the
+    /// frame on screen.
+    fn press_is_on_pet(&self, location: NSPoint) -> bool {
+        let Some(window) = self.window() else {
+            return false;
+        };
+        self.ivars()
+            .hit
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .point_on_pet(window.frame(), location.x, location.y)
     }
 }
 
@@ -122,6 +169,154 @@ impl NSScreenHelper {
         let screens = NSScreen::screens(mtm);
         let first = screens.firstObject()?;
         Some(first.frame().size.height)
+    }
+}
+
+// ---------------------------------------------------------------------------
+// per-pixel hit testing
+// ---------------------------------------------------------------------------
+
+/// One frame's alpha silhouette: its size, one alpha byte per pixel in
+/// row-major order, and the inclusive bounding box of the drawn pixels
+/// (`None` when nothing is drawn).
+struct Silhouette {
+    width: usize,
+    height: usize,
+    alpha: Vec<u8>,
+    bounds: Option<(usize, usize, usize, usize)>,
+}
+
+impl Silhouette {
+    /// Reads a frame's alpha channel and its bounding box in a single pass.
+    fn of(frame: &image::RgbaImage) -> Self {
+        let width = frame.width() as usize;
+        let height = frame.height() as usize;
+        let mut alpha = Vec::with_capacity(width * height);
+        let (mut min_x, mut max_x) = (usize::MAX, 0);
+        let (mut min_y, mut max_y) = (usize::MAX, 0);
+        for (y, row) in frame.rows().enumerate() {
+            let mut row_min = usize::MAX;
+            let mut row_max = 0;
+            for (x, pixel) in row.enumerate() {
+                let a = pixel.0[3];
+                if a > 0 {
+                    row_min = row_min.min(x);
+                    row_max = x;
+                }
+                alpha.push(a);
+            }
+            if row_min != usize::MAX {
+                // rows arrive in order, so the first inked row is the top of
+                // the box and each later one moves the bottom
+                if min_y == usize::MAX {
+                    min_y = y;
+                }
+                max_y = y;
+                min_x = min_x.min(row_min);
+                max_x = max_x.max(row_max);
+            }
+        }
+        Self {
+            width,
+            height,
+            alpha,
+            bounds: (min_y != usize::MAX).then_some((min_x, min_y, max_x, max_y)),
+        }
+    }
+}
+
+/// The alpha silhouette of the frame on screen, plus the mouse policy
+/// derived from it and the cursor.
+///
+/// Two different questions are answered from the same alpha data. The window
+/// only has all-or-nothing `setIgnoresMouseEvents`, so that flag follows the
+/// *bounding box* of the drawn pixels: a click aimed at the pet is never lost
+/// to the sampling delay between frame ticks. Whether the pet reacts at all
+/// is then decided per pixel from the view's own hit test, so a press on a
+/// transparent pixel does not reach the pet at all.
+struct HitTest {
+    /// The frame currently on screen; `None` until the first one arrives.
+    mask: Option<Silhouette>,
+    /// The user's "click through" setting: the panel never takes the mouse.
+    click_through: bool,
+    /// The `ignoresMouseEvents` value currently applied to the panel.
+    ignoring: bool,
+}
+
+impl HitTest {
+    fn new(click_through: bool) -> Self {
+        Self {
+            mask: None,
+            click_through,
+            ignoring: click_through,
+        }
+    }
+
+    /// Maps a point in the panel's own coordinates (x from the left, y from
+    /// the bottom, both in points) to the image pixel under it.
+    ///
+    /// `NSEvent::mouseLocation` and the panel frame share AppKit's screen
+    /// space, while image rows are counted from the top. The panel is sized
+    /// to image pixels / backing scale, so the pixels-per-point ratio is
+    /// derived from the frame itself and stays right whatever density the
+    /// layer ends up drawing at.
+    fn pixel_at(&self, frame: NSRect, x_pt: f64, y_from_bottom: f64) -> Option<(usize, usize)> {
+        let mask = self.mask.as_ref()?;
+        let (width, height) = (mask.width as f64, mask.height as f64);
+        if mask.width == 0
+            || mask.height == 0
+            || frame.size.width <= 0.0
+            || frame.size.height <= 0.0
+        {
+            return None;
+        }
+        // Outside the frame there is no pixel: a point beyond an edge must not
+        // wrap into the opposite row or column, which a saturating cast to
+        // `usize` would otherwise do for negative or oversized values.
+        if x_pt < 0.0 || y_from_bottom < 0.0 {
+            return None;
+        }
+        if x_pt >= frame.size.width || y_from_bottom >= frame.size.height {
+            return None;
+        }
+        let px = (x_pt * width / frame.size.width) as usize;
+        let py = ((frame.size.height - y_from_bottom) * height / frame.size.height) as usize;
+        if px >= mask.width || py >= mask.height {
+            return None;
+        }
+        Some((px, py))
+    }
+
+    /// Whether a point on the panel is on a drawn pixel — the exact
+    /// silhouette, which is what decides if the pet reacts to a click.
+    fn point_on_pet(&self, frame: NSRect, x_pt: f64, y_from_bottom: f64) -> bool {
+        let Some((px, py)) = self.pixel_at(frame, x_pt, y_from_bottom) else {
+            return false;
+        };
+        let Some(mask) = self.mask.as_ref() else {
+            return false;
+        };
+        mask.alpha[py * mask.width + px] > 0
+    }
+
+    /// Whether the panel should take the mouse at all: the cursor has to be
+    /// inside the bounding box of the drawn pixels. Outside it — the
+    /// transparent margins of the frame, another screen, or a frame with
+    /// nothing drawn on it — the pet yields the mouse to whatever is behind
+    /// it, as a layered window does on Windows.
+    fn cursor_on_pet(&self, frame: NSRect, mouse: NSPoint) -> bool {
+        let Some(mask) = self.mask.as_ref() else {
+            return false;
+        };
+        let Some((min_x, min_y, max_x, max_y)) = mask.bounds else {
+            return false;
+        };
+        let Some((px, py)) =
+            self.pixel_at(frame, mouse.x - frame.origin.x, mouse.y - frame.origin.y)
+        else {
+            return false;
+        };
+        px >= min_x && px <= max_x && py >= min_y && py <= max_y
     }
 }
 
@@ -152,6 +347,8 @@ pub struct MacPetWindow {
     layer: Retained<CALayer>,
     geometry: Arc<Mutex<SharedGeometry>>,
     pending: Arc<Mutex<VecDeque<Command>>>,
+    /// Shared with the content view, which hit-tests presses against it.
+    hit_test: Arc<Mutex<HitTest>>,
 }
 
 impl MacPetWindow {
@@ -197,11 +394,14 @@ impl MacPetWindow {
             NSWindowCollectionBehavior::CanJoinAllSpaces
                 | NSWindowCollectionBehavior::FullScreenAuxiliary,
         );
+        // AppKit's own background drag moves the panel; the content view turns
+        // it off again for every press that does not start on the pet
         panel.setMovableByWindowBackground(true);
         panel.setIgnoresMouseEvents(config.click_through);
         unsafe { panel.setReleasedWhenClosed(false) };
 
-        let view = PetView::new(mtm, delegate);
+        let hit_test = Arc::new(Mutex::new(HitTest::new(config.click_through)));
+        let view = PetView::new(mtm, delegate, Arc::clone(&hit_test));
         view.setWantsLayer(true);
         let layer = CALayer::new();
         layer.setOpaque(false);
@@ -218,6 +418,7 @@ impl MacPetWindow {
             layer,
             geometry,
             pending: Arc::new(Mutex::new(VecDeque::new())),
+            hit_test,
         })
     }
 
@@ -228,7 +429,8 @@ impl MacPetWindow {
             .push_back(command);
     }
 
-    /// Drains and applies every queued command. Must run on the main
+    /// Drains and applies every queued command, then re-derives the panel's
+    /// mouse policy from the frame now on screen. Must run on the main
     /// thread; the application calls this once per frame tick.
     pub fn apply_pending(&self) {
         if MainThreadMarker::new().is_none() {
@@ -244,13 +446,18 @@ impl MacPetWindow {
         for command in commands {
             self.apply(command);
         }
+        self.refresh_hit_test();
     }
 
     fn apply(&self, command: Command) {
         match command {
             Command::Frame(frame) => self.apply_frame(frame),
             Command::ClickThrough(click_through) => {
-                self.panel.setIgnoresMouseEvents(click_through);
+                self.hit_test
+                    .lock()
+                    .unwrap_or_else(std::sync::PoisonError::into_inner)
+                    .click_through = click_through;
+                self.apply_mouse_policy();
             }
             Command::AlwaysOnTop(always_on_top) => {
                 self.panel.setLevel(window_level(always_on_top));
@@ -290,6 +497,7 @@ impl MacPetWindow {
 
     fn apply_frame(&self, frame: image::RgbaImage) {
         let (width, height) = (frame.width(), frame.height());
+        self.store_mask(&frame);
         let Ok(image) = make_cg_image(frame) else {
             return;
         };
@@ -317,6 +525,42 @@ impl MacPetWindow {
         }
         // SAFETY: `image` is a valid CGImage we just created.
         unsafe { self.layer.setContents(Some(image.any_object_ref())) };
+    }
+
+    /// Records the alpha silhouette of the frame that is about to go on
+    /// screen — the data both halves of the hit test run on.
+    fn store_mask(&self, frame: &image::RgbaImage) {
+        let silhouette = Silhouette::of(frame);
+        self.hit_test
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .mask = Some(silhouette);
+    }
+
+    /// Re-derives the panel's mouse policy from the frame's alpha and the
+    /// cursor position. Main thread, once per frame tick.
+    fn refresh_hit_test(&self) {
+        // A held button may be mid-drag: the window drag is running and the
+        // release still has to reach the view, so the policy waits for the
+        // last button to come up.
+        if NSEvent::pressedMouseButtons() != 0 {
+            return;
+        }
+        self.apply_mouse_policy();
+    }
+
+    /// Applies "the panel takes the mouse only over the pet" to the panel.
+    fn apply_mouse_policy(&self) {
+        let mut hit = self
+            .hit_test
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner);
+        let ignoring =
+            hit.click_through || !hit.cursor_on_pet(self.panel.frame(), NSEvent::mouseLocation());
+        if ignoring != hit.ignoring {
+            hit.ignoring = ignoring;
+            self.panel.setIgnoresMouseEvents(ignoring);
+        }
     }
 
     pub fn position(&self) -> Option<(i32, i32)> {
@@ -422,5 +666,98 @@ impl AnyRef for CGImage {
         // representation; the caller keeps the `Retained<CGImage>` alive
         // through the `setContents` call and the layer retains it after.
         unsafe { &*(std::ptr::from_ref::<CGImage>(self).cast::<AnyObject>()) }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use image::Rgba;
+
+    fn frame(size: (u32, u32), drawn: &[(u32, u32)]) -> image::RgbaImage {
+        let mut frame = image::RgbaImage::new(size.0, size.1);
+        for &(x, y) in drawn {
+            frame.put_pixel(x, y, Rgba([10, 20, 30, 255]));
+        }
+        frame
+    }
+
+    fn rect(x: f64, y: f64, width: f64, height: f64) -> NSRect {
+        NSRect::new(NSPoint::new(x, y), NSSize::new(width, height))
+    }
+
+    fn hit_test(frame: &image::RgbaImage) -> HitTest {
+        let mut hit = HitTest::new(false);
+        hit.mask = Some(Silhouette::of(frame));
+        hit
+    }
+
+    #[test]
+    fn silhouette_keeps_every_alpha_and_the_box_around_the_drawn_pixels() {
+        let silhouette = Silhouette::of(&frame((4, 3), &[(1, 0), (3, 2)]));
+        assert_eq!((silhouette.width, silhouette.height), (4, 3));
+        assert_eq!(silhouette.alpha.len(), 12);
+        assert_eq!(silhouette.alpha[1], 255);
+        assert_eq!(silhouette.alpha[2], 0);
+        assert_eq!(silhouette.alpha[2 * 4 + 3], 255);
+        assert_eq!(silhouette.bounds, Some((1, 0, 3, 2)));
+    }
+
+    #[test]
+    fn an_empty_frame_has_no_box() {
+        let silhouette = Silhouette::of(&frame((4, 3), &[]));
+        assert_eq!(silhouette.bounds, None);
+        assert!(silhouette.alpha.iter().all(|a| *a == 0));
+    }
+
+    #[test]
+    fn a_point_maps_to_the_pixel_under_it_at_any_backing_scale() {
+        let hit = hit_test(&frame((192, 256), &[(0, 0)]));
+        // Retina: 192x256 device pixels drawn into a 96x128 point panel
+        let retina = rect(100.0, 200.0, 96.0, 128.0);
+        assert_eq!(hit.pixel_at(retina, 0.0, 0.5), Some((0, 255)));
+        assert_eq!(hit.pixel_at(retina, 48.0, 64.0), Some((96, 128)));
+        assert_eq!(hit.pixel_at(retina, 95.9, 127.9), Some((191, 0)));
+        // 1x: the panel is the frame in points
+        let plain = rect(0.0, 0.0, 192.0, 256.0);
+        assert_eq!(hit.pixel_at(plain, 10.0, 10.0), Some((10, 246)));
+    }
+
+    #[test]
+    fn points_outside_the_frame_and_frames_without_a_mask_have_no_pixel() {
+        let hit = hit_test(&frame((192, 256), &[(0, 0)]));
+        let retina = rect(100.0, 200.0, 96.0, 128.0);
+        assert_eq!(hit.pixel_at(retina, -0.5, 10.0), None);
+        assert_eq!(hit.pixel_at(retina, 10.0, -0.5), None);
+        // past an edge: must not wrap around into the opposite edge
+        assert_eq!(hit.pixel_at(retina, 96.0, 10.0), None);
+        assert_eq!(hit.pixel_at(retina, 10.0, 128.0), None);
+        assert_eq!(hit.pixel_at(retina, 10.0, 130.0), None);
+        assert_eq!(HitTest::new(false).pixel_at(retina, 10.0, 10.0), None);
+    }
+
+    #[test]
+    fn only_presses_on_drawn_pixels_reach_the_pet() {
+        let hit = hit_test(&frame((4, 4), &[(2, 1)]));
+        let panel = rect(0.0, 0.0, 4.0, 4.0);
+        // the drawn pixel is at x = 2, so its centres sit between 2 and 3 in
+        // points, and 4 - 1 - 1 = 2 up from the panel's bottom edge
+        assert!(hit.point_on_pet(panel, 2.5, 2.5));
+        assert!(!hit.point_on_pet(panel, 0.5, 2.5));
+        assert!(!hit.point_on_pet(panel, 3.5, 0.5));
+        assert!(!hit.point_on_pet(panel, -1.0, 2.5));
+    }
+
+    #[test]
+    fn the_panel_takes_the_mouse_only_inside_the_box() {
+        let hit = hit_test(&frame((4, 4), &[(2, 1)]));
+        let panel = rect(0.0, 0.0, 4.0, 4.0);
+        assert!(hit.cursor_on_pet(panel, NSPoint::new(2.5, 2.5)));
+        // inside the panel but outside the box around the drawn pixel
+        assert!(!hit.cursor_on_pet(panel, NSPoint::new(0.5, 2.5)));
+        // off the panel entirely
+        assert!(!hit.cursor_on_pet(panel, NSPoint::new(9.0, 9.0)));
+        // nothing drawn: the pet never keeps the mouse to itself
+        assert!(!hit_test(&frame((4, 4), &[])).cursor_on_pet(panel, NSPoint::new(2.5, 2.5)));
     }
 }

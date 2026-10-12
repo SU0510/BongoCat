@@ -2,6 +2,13 @@
 //! `UpdateLayeredWindow` with premultiplied ARGB — the classic desktop-pet
 //! path with OS-guaranteed per-pixel alpha and no GPU pipeline.
 //!
+//! Hit testing is per pixel for free: `UpdateLayeredWindow` gives a layered
+//! window out of its alpha channel, so a click over a transparent pixel of
+//! the frame goes to whatever is behind the pet instead of this window. That
+//! is the same contract the macOS backend reaches by flipping
+//! `setIgnoresMouseEvents` from the frame's alpha, which is why no extra code
+//! is needed here beyond the user's whole-window `click_through` toggle.
+//!
 //! Thread model: the window lives on a dedicated thread running a standard
 //! `GetMessageW` loop. Public methods push commands through a channel; the
 //! window thread applies them, so no caller ever touches an `HWND`.

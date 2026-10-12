@@ -4,6 +4,14 @@
 //! UpdateLayeredWindow); `unsafe` is confined to those two modules per
 //! ADR-0090 and every non-trivial block documents its caller invariants.
 //!
+//! Hit testing is per pixel on both backends: a click on a transparent pixel
+//! of the frame does not reach the pet, and where the frame has nothing drawn
+//! at all the click falls through to whatever is behind the window. On
+//! Windows the layered window gets that from its alpha channel; on macOS the
+//! panel stops taking the mouse outside the drawn pixels' bounding box on
+//! every frame tick, and the content view checks each press against the same
+//! alpha. `set_click_through` remains the user's whole-window override.
+//!
 //! Geometry contract: window size and positions are **device pixels** on
 //! Windows and **AppKit screen points** on macOS. The application owns
 //! persistence, clamping and scale.
@@ -98,6 +106,8 @@ impl PetWindowHandle {
         self.inner.set_frame(frame);
     }
 
+    /// The user's whole-window override: `true` makes the window ignore the
+    /// mouse entirely, on top of the per-pixel silhouette hit test.
     pub fn set_click_through(&self, click_through: bool) {
         self.inner.set_click_through(click_through);
     }

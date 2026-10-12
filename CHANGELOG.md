@@ -13,6 +13,7 @@
 
 ### 🐛 Bug Fixes
 
+- InSync's macOS desk pet now reacts only where the character is actually drawn: clicks, right-clicks and drags on the transparent area around the pet no longer trigger it, and the window stops taking the mouse once the cursor leaves the area around the character. Windows already behaved this way.
 - Fixed imported models that showed "The selected model could not be activated" when switching to them and only enabled after several attempts, even though they render correctly. Switching now succeeds on the first attempt.
 
 ## 2.2.0 - 2026-10-07
