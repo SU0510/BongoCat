@@ -311,6 +311,23 @@ server 17/17 一致，负向对照 app↔server 20/22 不同。旧实例先 `SIG
 （18:07:32 启动），当前桌宠即新形象。面板外观的**人工满意**仍待使用者确认
 （§8.1）：`verify_panel.py` 需要屏幕录制授权，自动化 shell 内取不到画面。
 
+本机现已换成「Nana 五官返工 + macOS 逐像素点击区域」（`6e41d2cf`，run
+38247444045，2026-10-12）的 CI 产物，六个任务全绿：contracts 7s / assets 13s /
+test-linux 49s / build-macos 5m43s / build-windows 9m52s / docker-server 2m7s。
+`build-macos` 的 `Tests` 步骤跑出 `insync-pet-window` 6 个新单元测试全部 ok
+（`macos::tests::*`：外接盒、逐像素命中、Retina/1x 映射、越界不回绕、空帧让出
+鼠标），也就是说**逐像素命中判定本身是 CI 上跑过的**，而不只是本地推理。CI 产物
+`insync-app` = `d195ac7c…`（安装并 ad-hoc 签名后 `d1ba2f72…`，文件 +18128 字节
+即签名段，与上一轮相同的差值）、`insync-server` = `fcad8567…`（安装后
+`87ed8d23…`，与上一轮**逐字节相同**：服务端代码未变，macOS 构建可复现）。安装后
+`codesign --verify` 对 app 与 server 均通过，`otool` 逐 section 比对（忽略地址列）
+为 app 22/22、server 17/17 一致，负向对照 app↔server 仅 2/22 相同。旧实例
+`SIGTERM` 后 0.5 秒内干净退出（与 §5 的退出契约一致），替换二进制后重新
+`open ~/Applications/InSync.app`（20:26 启动，进程稳定存活、无 crash report）。
+**仍未验证**：点击区域与人物轮廓在真实桌面上是否重合、以及新五官的观感是否讨喜，
+两者都需要使用者本机人眼/手感确认——本环境没有屏幕录制授权，也无法在会话里人工
+点桌面。
+
 ### 7.1 CI 实际运行记录（触发问题与修复）
 
 分支推送后 `insync-verify` 一共暴露出六个真实问题，均已修复并留下提交：
@@ -434,6 +451,17 @@ job 全绿**，本机安装的二进制即该 run 的产物，并在其上复验
    `docs/insync/CHANGELOG.md`——发布正文取自它、分段标题也由契约测试校验，所以它算
    构建输入），这类提交由「父提交的 CI 已全绿 + 改动不含任何构建输入」共同保证，
    而不是重新跑一遍 CI。
+10. **`production` 环境从未被启用（2026-10-12 发现，未修）**：`insync-app` 的环境
+   由 cargo feature `production` 决定（`crates/insync-app/src/lib.rs`），而
+   `insync-verify` 的构建命令是 `cargo build -p insync-app --release`，
+   `insync-release` 又**不重新构建**、只发布 verify 的产物——于是发布的 0.1.0
+   二进制与装入本机的都携带 **development** 环境，数据根落在
+   `.../com.ayangweb.insync/development`（`lsof`/目录实勘一致）。当前影响有限
+   （0.x、单机、development 与 production 目录布局相同），但它意味着「发布物是
+   开发构建」，且一旦两个环境出现行为差异就会随发布物外泄。修法要在
+   `insync-verify`（或 release 前的构建步骤）显式启用 `--features production`，
+   并同步 ADR-0092、发布契约测试与数据根迁移说明（用户已有数据在 development
+   根下）；属于发布通道改动，未取得使用者决定前不动，也**不**顺手改坏现有数据。
 
 ## 9. 需要用户亲自完成的最少事项
 
@@ -441,8 +469,11 @@ job 全绿**，本机安装的二进制即该 run 的产物，并在其上复验
    `~/Applications/InSync.app`（本轮的安装内容与哈希见 §7），托盘“打开面板”、
    桌宠右键与透明背景已在实机复验（§5.1），面板视觉的像素测量也已在安装版上
    重放（§5.2、§7）。仍需**人眼确认观感**（新配色和排版是否讨喜、桌宠动作是否
-   自然——本次会话的模型读不了图像）；Windows 侧请从 artifact
-   `insync-windows-x86_64` 下载后在实机运行。
+   自然——本次会话的模型读不了图像）；本轮另有两项只能由使用者判断：
+   **Nana 的新五官是否像本人、够不够可爱**（发际线与五官坐标见
+   `sprite-assets.md`），以及**点击区域是否真的只剩人物轮廓能吃下点击**（在人物
+   旁边点一下、拖一下，应完全落到后面的窗口；人物身上仍要能点、能拖）。
+   Windows 侧请从 artifact `insync-windows-x86_64` 下载后在实机运行。
 2. **提供一台公网服务器 + 域名**（可选）：按 `docs/insync/deployment.md`
    执行 `docker compose up -d --build` + 反向代理 TLS；把地址填进两端
    客户端设置。

@@ -158,7 +158,7 @@
   存在手势中途被策略打断的问题。Windows 侧分层窗口本来就按 alpha 命中，未改
   代码、只补文档。顺带修掉一个越界换算缺陷：光标坐标超出窗口时 `as usize` 会
   饱和到第 0 行，使「光标在窗口上方」可能被误判成「在人物上」，现在越界直接判为
-  不在人物上。验证：`insync-pet-window` 新增 5 个 `HitTest` 单元测试（外接盒与
+  不在人物上。验证：`insync-pet-window` 新增 6 个 `HitTest` 单元测试（外接盒与
   alpha 读取、逐像素命中、Retina/1x 像素映射、越界不回绕、空帧让出鼠标），由 CI
   的 `build-macos` 任务执行 `cargo test -p insync-pet-window`；同一套算术另用
   Python 逐条复算 26 个断言，期望值全部一致。**仍未验证**：真实桌面上「点人物
