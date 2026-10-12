@@ -262,24 +262,24 @@ def draw_hair_back(g: Grid, p: Pose, style: Style) -> None:
 def draw_head(g: Grid, p: Pose, style: Style) -> None:
     dy, dx = p.bob + p.jump, p.lean
     if style.big_head:
-        # chibi skull: x14..33, y11..21, then a gentle two-step taper to a
-        # soft rounded chin at y31 — the melon-seed face, on a much bigger head
+        # chibi skull: x14..33, y11..21, cheeks that stay full down past the
+        # eyes and a short five-row taper to a small chin at y31 — a soft
+        # oval face; the long taper of the first pass read as an egg
         for y in range(11 + dy, 22 + dy):
             g.hline(14 + dx, 33 + dx, y, "skin")
-        for y, x0 in ((22, 15), (23, 15), (24, 16), (25, 16), (26, 17), (27, 17), (28, 18)):
+        for y, x0 in ((22, 15), (23, 15), (24, 15), (25, 16), (26, 17),
+                      (27, 18), (28, 19)):
             xr = 47 - x0
             g.hline(x0 + dx, xr + dx, y + dy, "skin")
             g.plot(x0 - 1 + dx, y + dy, "outline")
             g.plot(xr + 1 + dx, y + dy, "outline")
-        g.hline(19 + dx, 28 + dx, 29 + dy, "skin")
-        g.plot(18 + dx, 29 + dy, "outline")
-        g.plot(29 + dx, 29 + dy, "outline")
+        g.hline(20 + dx, 27 + dx, 29 + dy, "skin")
+        g.plot(19 + dx, 29 + dy, "outline")
+        g.plot(28 + dx, 29 + dy, "outline")
         g.hline(21 + dx, 26 + dx, 30 + dy, "skin")
-        g.plot(19 + dx, 30 + dy, "outline")
         g.plot(20 + dx, 30 + dy, "outline")
         g.plot(27 + dx, 30 + dy, "outline")
-        g.plot(28 + dx, 30 + dy, "outline")
-        g.hline(21 + dx, 26 + dx, 31 + dy, "outline")
+        g.hline(22 + dx, 25 + dx, 31 + dy, "outline")
     else:
         # skull: x14..33, y8..26
         for y in range(9 + dy, 26 + dy):
@@ -297,30 +297,31 @@ def draw_head(g: Grid, p: Pose, style: Style) -> None:
 
 def draw_hair_front(g: Grid, p: Pose, dx: int, dy: int, style: Style) -> None:
     if style.combed_back:
-        # combed back from the hairline: a smooth dome, the forehead stays
-        # open (no bangs) and the hair follows the hairline down past the
-        # temples into side locks where the braids take over — as in the photo
+        # combed back from the hairline: the hair mass comes all the way down
+        # over the forehead and the temples, leaving only a small arched sliver
+        # of skin above the eyes — no bangs, but no bald dome either, which is
+        # what made the first pass read as a big forehead
         g.hline(20 + dx, 27 + dx, 6 + dy, "hair")
         g.hline(18 + dx, 29 + dx, 7 + dy, "hair")
         g.hline(16 + dx, 31 + dx, 8 + dy, "hair")
         g.hline(15 + dx, 32 + dx, 9 + dy, "hair")
         g.hline(14 + dx, 33 + dx, 10 + dy, "hair")
-        g.hline(13 + dx, 34 + dx, 11 + dy, "hair")
-        g.hline(13 + dx, 34 + dx, 12 + dy, "hair")
-        # the hairline: the hair's front edge follows the hairline — highest in
-        # the middle of the forehead, sweeping down over the temples
-        g.hline(13 + dx, 20 + dx, 13 + dy, "hair")
-        g.hline(27 + dx, 34 + dx, 13 + dy, "hair")
-        g.hline(13 + dx, 18 + dx, 14 + dy, "hair")
-        g.hline(29 + dx, 34 + dx, 14 + dy, "hair")
-        g.hline(13 + dx, 16 + dx, 15 + dy, "hair")
-        g.hline(31 + dx, 34 + dx, 15 + dy, "hair")
-        # side locks gathering down past the temples to the ear
-        g.vline(13 + dx, 10 + dy, 21 + dy, "hair")
-        g.vline(14 + dx, 16 + dy, 21 + dy, "hair")
-        g.vline(34 + dx, 10 + dy, 21 + dy, "hair")
-        g.vline(33 + dx, 16 + dy, 21 + dy, "hair")
-        # silhouette outline
+        for y in range(11 + dy, 17 + dy):
+            g.hline(13 + dx, 34 + dx, y, "hair")
+        # the hairline: a narrow arch of skin (x21..26) opens below the part
+        # and widens downward, while the hair sweeps on down over the temples
+        g.hline(13 + dx, 20 + dx, 17 + dy, "hair")
+        g.hline(27 + dx, 34 + dx, 17 + dy, "hair")
+        g.hline(13 + dx, 18 + dx, 18 + dy, "hair")
+        g.hline(29 + dx, 34 + dx, 18 + dy, "hair")
+        g.hline(13 + dx, 16 + dx, 19 + dy, "hair")
+        g.hline(31 + dx, 34 + dx, 19 + dy, "hair")
+        # three columns of hair down each cheek to the jaw: the face keeps a
+        # narrow 16px window between them, the way the reference's hair falls
+        for y in range(20 + dy, 26 + dy):
+            for x in (13, 14, 15, 32, 33, 34):
+                g.plot(x + dx, y, "hair")
+        # silhouette outline, carried down the locks to the jaw
         g.hline(19 + dx, 28 + dx, 5 + dy, "outline")
         g.plot(19 + dx, 6 + dy, "outline")
         g.plot(28 + dx, 6 + dy, "outline")
@@ -332,8 +333,10 @@ def draw_hair_front(g: Grid, p: Pose, dx: int, dy: int, style: Style) -> None:
         g.plot(33 + dx, 9 + dy, "outline")
         g.plot(13 + dx, 10 + dy, "outline")
         g.plot(34 + dx, 10 + dy, "outline")
-        g.vline(12 + dx, 11 + dy, 21 + dy, "outline")
-        g.vline(35 + dx, 11 + dy, 21 + dy, "outline")
+        g.vline(12 + dx, 11 + dy, 25 + dy, "outline")
+        g.vline(35 + dx, 11 + dy, 25 + dy, "outline")
+        # the part: one shadow pixel per row down the middle of the hair mass
+        g.vline(23 + dx, 10 + dy, 15 + dy, "hair_shadow")
         # shine
         g.hline(19 + dx, 25 + dx, 8 + dy, "hair_light")
         g.hline(20 + dx, 24 + dx, 9 + dy, "hair_light")
@@ -472,39 +475,43 @@ def draw_braids(g: Grid, p: Pose, style: Style) -> None:
 
 
 def draw_face(g: Grid, p: Pose, dx: int, dy: int, style: Style) -> None:
-    # the chibi face sits lower in its much taller head, with more room
-    # between the eyes and the chin
-    eye_y = (19 if style.big_head else 17) + dy
+    # the chibi face sits low in its much taller head: the hairline now stops
+    # just above the eyes, so the eyes move down with it and the mouth keeps
+    # two quiet rows above the chin
+    eye_y = (20 if style.big_head else 17) + dy
+    eyes = (18, 27) if style.big_head else (17, 28)
     if p.eyes == "open":
-        eye_h = 3 if style.big_head else 2  # the chibi has taller, rounder eyes
-        for ex in (17, 28):
+        for ex in eyes:
             if style.big_head:
-                g.hline(ex + 1 + dx, ex + 2 + dx, eye_y, "eye")
-                g.rect(ex + dx, eye_y + 1, ex + 2 + dx, eye_y + eye_h, "eye")
+                # 3x4 almond, one row taller than momo's: the catchlight is a
+                # bright top edge on the same side of both eyes, so the pair
+                # reads with one light
+                g.rect(ex + dx, eye_y, ex + 2 + dx, eye_y + 3, "eye")
+                g.plot(ex + 1 + dx, eye_y, "white")
+                g.plot(ex + 2 + dx, eye_y, "white")
             else:
+                eye_h = 2
                 g.rect(ex + dx, eye_y, ex + 2 + dx, eye_y + eye_h, "eye")
-            g.plot(ex + 2 + dx, eye_y, "white")
-            g.plot(ex + 1 + dx, eye_y, "white")
-            if style.big_head:
-                g.plot(ex + 2 + dx, eye_y + 1, "white")
+                g.plot(ex + 2 + dx, eye_y, "white")
+                g.plot(ex + 1 + dx, eye_y, "white")
     elif p.eyes == "wide":
-        for ex in (17, 28):
+        for ex in eyes:
             g.rect(ex + dx, eye_y - 1, ex + 2 + dx, eye_y + 3, "eye")
             g.plot(ex + 2 + dx, eye_y - 1, "white")
             g.plot(ex + 1 + dx, eye_y, "white")
     elif p.eyes == "half":
-        for ex in (17, 28):
+        for ex in eyes:
             g.rect(ex + dx, eye_y + 1, ex + 2 + dx, eye_y + 2, "eye")
             g.plot(ex + 2 + dx, eye_y + 1, "white")
     elif p.eyes == "closed":
-        g.hline(17 + dx, 19 + dx, eye_y + 2, "eye")
-        g.hline(28 + dx, 30 + dx, eye_y + 2, "eye")
+        for ex in eyes:
+            g.hline(ex + dx, ex + 2 + dx, eye_y + 2, "eye")
     elif p.eyes == "happy":
-        for ex in (17, 28):
+        for ex in eyes:
             g.plot(ex + dx, eye_y + 2, "eye")
             g.plot(ex + 1 + dx, eye_y + 1, "eye")
             g.plot(ex + 2 + dx, eye_y + 2, "eye")
-    mouth_y = (26 if style.big_head else 22) + dy
+    mouth_y = (27 if style.big_head else 22) + dy
     if p.mouth == "smile":
         g.plot(23 + dx, mouth_y, "eye")
         g.plot(24 + dx, mouth_y + 1, "eye")
@@ -522,9 +529,9 @@ def draw_face(g: Grid, p: Pose, dx: int, dy: int, style: Style) -> None:
         g.plot(24 + dx, mouth_y + 1, "white")
     if p.blush:
         if style.big_head:
-            # a soft tick under the outer corner of each eye
-            g.hline(16 + dx, 17 + dx, 24 + dy, "blush")
-            g.hline(30 + dx, 31 + dx, 24 + dy, "blush")
+            # a soft tick under the outer half of each eye
+            g.hline(17 + dx, 18 + dx, 25 + dy, "blush")
+            g.hline(29 + dx, 30 + dx, 25 + dy, "blush")
         else:
             g.hline(15 + dx, 16 + dx, 21 + dy, "blush")
             g.hline(31 + dx, 32 + dx, 21 + dy, "blush")
