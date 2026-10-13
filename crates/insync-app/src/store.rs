@@ -196,7 +196,7 @@ fn default_pet_scale() -> u16 {
 fn default_pet_opacity() -> u8 {
     100
 }
-pub const CHARACTERS: [&str; 2] = ["momo", "nana"];
+pub const CHARACTERS: [&str; 3] = ["momo", "nana", "nana-chibi"];
 fn default_character() -> String {
     "momo".to_string()
 }

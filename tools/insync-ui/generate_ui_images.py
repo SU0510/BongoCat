@@ -22,6 +22,8 @@ Outputs (checked in, embedded by `crates/insync-app/src/assets.rs`):
     resources/insync/ui/momo_wave.png       waving full pose, 100x194
     resources/insync/ui/nana_portrait.png   head/bust crop, 96x96
     resources/insync/ui/nana_wave.png       waving full pose, 100x194
+    resources/insync/ui/nana-chibi_portrait.png  chibi head crop, 96x96
+    resources/insync/ui/nana-chibi_wave.png      chibi wave pose, 124x194
 """
 
 from __future__ import annotations
@@ -37,18 +39,26 @@ OUT = ROOT / "resources" / "insync" / "ui"
 
 FRAME_W, FRAME_H = 192, 256
 
-CHARACTERS = ("momo", "nana")
+CHARACTERS = ("momo", "nana", "nana-chibi")
 
 # Crop window measured from the momo idle sheet: the head/bust occupies the top
 # square of the figure (the braids start at y=16, the shoulders at y=120). The
-# characters share one silhouette, so the same window crops both.
-PORTRAIT_CROP = (44, 12, 148, 120)
+# characters share one silhouette, so the same window crops both; the chibi
+# head is bigger and taller, so it needs its own window.
+PORTRAIT_CROPS = {
+    "momo": (44, 12, 148, 120),
+    "nana": (44, 12, 148, 120),
+    "nana-chibi": (36, 24, 156, 176),
+}
 # The wave animation's frame 1 has the paw raised, which reads as a greeting.
 WAVE_FRAME = 1
 
-# Exact pixel sizes the panel draws, doubled for Retina.
+# Exact pixel sizes the panel draws, doubled for Retina. The portrait is padded
+# to a square before scaling so a square avatar box never distorts a character
+# whose head crop is not square (the chibi's is taller than wide).
 PORTRAIT_SIZE = (96, 96)
-WAVE_SIZE = (100, 194)
+WAVE_SIZES = {"momo": (100, 194), "nana": (100, 194)}
+WAVE_HEIGHT = 194
 
 
 def frame(sheet: Image.Image, index: int) -> Image.Image:
@@ -94,6 +104,15 @@ def save(image: Image.Image, name: str) -> None:
     )
 
 
+def pad_square(image: Image.Image) -> Image.Image:
+    side = max(image.size)
+    if image.size == (side, side):
+        return image
+    out = Image.new("RGBA", (side, side), (0, 0, 0, 0))
+    out.paste(image, ((side - image.width) // 2, (side - image.height) // 2))
+    return out
+
+
 def build() -> list[tuple[str, Image.Image]]:
     """Every panel image, in the order the summary prints them."""
     images = []
@@ -101,10 +120,15 @@ def build() -> list[tuple[str, Image.Image]]:
         idle = Image.open(SPRITES / character / "idle.png")
         wave = Image.open(SPRITES / character / "wave.png")
 
-        portrait = crop_to_ink(frame(idle, 0).crop(PORTRAIT_CROP))
+        portrait = crop_to_ink(frame(idle, 0).crop(PORTRAIT_CROPS[character]))
+        images.append(
+            (f"{character}_portrait.png", scale(pad_square(portrait), PORTRAIT_SIZE))
+        )
         pose = crop_to_ink(frame(wave, WAVE_FRAME))
-        images.append((f"{character}_portrait.png", scale(portrait, PORTRAIT_SIZE)))
-        images.append((f"{character}_wave.png", scale(pose, WAVE_SIZE)))
+        size = WAVE_SIZES.get(character) or (
+            round(WAVE_HEIGHT * pose.width / pose.height), WAVE_HEIGHT
+        )
+        images.append((f"{character}_wave.png", scale(pose, size)))
     return images
 
 

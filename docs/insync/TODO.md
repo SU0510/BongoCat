@@ -8,7 +8,7 @@
 - [x] A2 素材生成管线：`tools/insync-sprites/{generate,validate,preview}_sprites.py`，13 个动画全绿（`validate_sprites.py` OK；CI 任务 `assets` 防漂移）；提醒音 `tools/insync-audio/{generate,validate}_alarm.py`（纯 stdlib 确定性合成，`generate_alarm.py --check` 字节比对 + `validate_alarm.py` 校验格式/电平/音高，由同一 CI 任务执行）
 - [x] A3 `insync-sprite`：manifest 加载、帧计算、优先级状态机、随机行为（13 个单元测试通过）
 - [x] A4 新角色「Nana」（按使用者真实照片 redesign：深棕色双麻花辫搭在肩膀身前、
-  中分空气刘海、玫瑰粉无袖上衣与斜挎包带）：生成器加 `Style` 结构旗标
+  中分窗帘刘海（发丝自中分沿发际线向两侧梳下）、玫瑰粉无袖上衣与斜挎包带）：生成器加 `Style` 结构旗标
   （`braids` / `center_part` / `sleeveless` / `strap` / `soft_face` / `ahoge`），绘制函数按旗标
   分支而非角色名分支——momo/mint 输出经 4x 最近邻像素比对确认零漂移。第一版
   观感发黄发黑、辫子垂在身后两侧，按使用者反馈返工：肤色提亮为暖 ivory + 软暖褐
@@ -24,10 +24,37 @@
   （`git diff a76a7a4c -- <这些路径> resources/insync` 为空）。验证：`validate_sprites.py`
   对 manifest 三个角色全绿；`check_pixel_drift.py`（重新生成到临时目录后逐像素
   比对）报告无漂移；`generate_ui_images.py --check` 四张裁切图全部与重新生成一致；
-  momo / momo-mint 的 26 张精灵图自始至终未被触及。**遗留**：使用者此前提出的
-  「头发是顺着发际线梳下来的」在回退后**未实现**（回退版是中分空气刘海）——下一轮
-  若仍要做，只改发型这一处、在 v1 脸型之上单独提交，并先交使用者确认。
-  审美本身仍待使用者人眼确认（final-report §8.1）。
+  momo / momo-mint 的 26 张精灵图自始至终未被触及。
+  **2026-10-12 窗帘刘海轮**（收尾上述遗留）：在 v1 脸型之上**只改发型一处**——空气刘海
+  换窗帘刘海：发丝自中分沿发际线斜向太阳穴梳下，额头读作向眉线加宽的窄三角，更贴近
+  原型照片；脸型、比例、辫子与衣着全部未动。重新生成后 `validate_sprites.py` 全绿、
+  `check_pixel_drift.py` 无漂移、momo / momo-mint 零漂移。
+  **2026-10-12 Q 版轮**：见 A5——Q 版做成**独立角色** `nana-chibi`，nana 本人不再动比例。
+  这两轮的审美已由使用者人眼确认（窗帘刘海轮：「现在正常版非常好」；Q 版轮见 A5），
+  nana 的素材就此定稿。
+- [x] A5 新角色「Nana（Q 版）」（学 Q 版二次元参考图的**画法**，画的仍是照片里的 nana）：
+  大圆眼（上排 2×2 高光 + 下眼睑一颗）、腮红、辫尖五瓣小花；双辫、窗帘刘海、玫瑰粉
+  无袖上衣、斜挎包带与牛仔裤全部保留。生成器新增 `chibi` 结构旗标与独立绘制
+  路径（`draw_chibi_*`，自有坐标布局，不复用 nana 的体型分支），nana 的输出不受任何影响；
+  调色板与 nana 逐色相同（仅 `confetti_a` 取上衣色），两者一眼读作同一个人；13 个动画与
+  Momo 同套。`generate_ui_images.py` 改为按角色裁切窗口（`PORTRAIT_CROPS`）：Q 版头部裁切
+  高大于宽，裁后透明补方再缩放，方形头像框不拉伸；wave 图按角色取尺寸。app 侧注册：
+  `store::CHARACTERS` 加 id、`assets.rs` 内嵌 13 张表与 2 张裁切图、`i18n.rs` 加
+  `character.nana-chibi`；设置面板角色行按 `store::CHARACTERS` 循环渲染，第三个选项自动
+  出现，旧配置无该值仍回退首个角色。
+  **2026-10-13 使用者逐轮反馈定稿**（每轮只改一处，改完重出 contact sheet 交人看）：
+  ① 张口笑 → **不张口的 v 形笑嘴**（y32..33）；② 编麻花 + 搭肩垂胸 → **垂直发束**
+  （不搭肩，自头部侧发列直垂到 y48，坐姿收到 y44 使发梢不落地）；③「整体太瘦长」→
+  头顶压平四行（头 y6..38、x9..38），脸只四段收到圆润下巴，头部读作圆；④「有些图
+  错位」→ 辫子与头同取 `lean` 偏移，举臂移到头部轮廓**外侧**（x5..7 / x40..42）并用
+  y41..43 的袖子横向接回躯干，渲染顺序改为 legs → torso → arms → braids → strap →
+  head（袖子先画、辫子后画，袖子从发束后面穿过，既不消失在头后也不与躯干断开）。
+  使用者看过第 4 轮预览后要求把这一版做进软件、提交推送打标签，即接受该版。
+  验证：`validate_sprites.py` 对 manifest 四个角色全绿；`check_pixel_drift.py` 重新生成后
+  报告无漂移；`generate_ui_images.py --check` 六张裁切图全部一致（`nana-chibi` 头像
+  96×96、墨迹占 78%；wave 133×194、墨迹占 67%）；momo / momo-mint 零漂移；
+  `every_character_is_fully_embedded` / `every_panel_image_is_embedded` 覆盖新角色
+  （Rust 测试按约定交 CI 跑，本地不执行）。
 
 ## Phase B — 桌宠窗口
 

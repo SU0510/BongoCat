@@ -355,6 +355,13 @@ pub fn text(language: &str, key: &str) -> &'static str {
                 "Nana (braids)"
             }
         }
+        "character.nana-chibi" => {
+            if zh {
+                "Nana（Q版）"
+            } else {
+                "Nana (chibi)"
+            }
+        }
         "settings.no_partner" => {
             if zh {
                 "尚未绑定伴侣"

@@ -252,6 +252,90 @@
           "loop": true
         }
       }
+    },
+    "nana-chibi": {
+      "frame_width": 192,
+      "frame_height": 256,
+      "animations": {
+        "idle": {
+          "file": "nana-chibi/idle.png",
+          "frames": 4,
+          "fps": 3,
+          "loop": true
+        },
+        "blink": {
+          "file": "nana-chibi/blink.png",
+          "frames": 5,
+          "fps": 8,
+          "loop": false
+        },
+        "wave": {
+          "file": "nana-chibi/wave.png",
+          "frames": 6,
+          "fps": 6,
+          "loop": false
+        },
+        "walk": {
+          "file": "nana-chibi/walk.png",
+          "frames": 6,
+          "fps": 8,
+          "loop": true
+        },
+        "sleep": {
+          "file": "nana-chibi/sleep.png",
+          "frames": 4,
+          "fps": 2,
+          "loop": true
+        },
+        "work": {
+          "file": "nana-chibi/work.png",
+          "frames": 4,
+          "fps": 3,
+          "loop": true
+        },
+        "stretch": {
+          "file": "nana-chibi/stretch.png",
+          "frames": 6,
+          "fps": 5,
+          "loop": false
+        },
+        "react": {
+          "file": "nana-chibi/react.png",
+          "frames": 4,
+          "fps": 8,
+          "loop": false
+        },
+        "poke_react": {
+          "file": "nana-chibi/poke_react.png",
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "message_react": {
+          "file": "nana-chibi/message_react.png",
+          "frames": 4,
+          "fps": 6,
+          "loop": false
+        },
+        "invite_react": {
+          "file": "nana-chibi/invite_react.png",
+          "frames": 4,
+          "fps": 6,
+          "loop": false
+        },
+        "celebrate": {
+          "file": "nana-chibi/celebrate.png",
+          "frames": 6,
+          "fps": 8,
+          "loop": false
+        },
+        "rest": {
+          "file": "nana-chibi/rest.png",
+          "frames": 4,
+          "fps": 3,
+          "loop": true
+        }
+      }
     }
   }
 }

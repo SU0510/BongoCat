@@ -28,6 +28,12 @@ fn ui_image(path: &str) -> Option<&'static [u8]> {
             include_bytes!("../../../resources/insync/ui/nana_portrait.png")
         }
         "insync/nana_wave.png" => include_bytes!("../../../resources/insync/ui/nana_wave.png"),
+        "insync/nana-chibi_portrait.png" => {
+            include_bytes!("../../../resources/insync/ui/nana-chibi_portrait.png")
+        }
+        "insync/nana-chibi_wave.png" => {
+            include_bytes!("../../../resources/insync/ui/nana-chibi_wave.png")
+        }
         _ => return None,
     })
 }
@@ -127,6 +133,22 @@ pub fn sprite_library() -> &'static SpriteLibrary {
         ));
         sheets.extend(sheets!(
             "nana",
+            "idle",
+            "blink",
+            "wave",
+            "walk",
+            "sleep",
+            "work",
+            "stretch",
+            "react",
+            "poke_react",
+            "message_react",
+            "invite_react",
+            "celebrate",
+            "rest"
+        ));
+        sheets.extend(sheets!(
+            "nana-chibi",
             "idle",
             "blink",
             "wave",
