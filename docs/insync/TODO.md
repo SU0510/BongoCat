@@ -54,7 +54,9 @@
   报告无漂移；`generate_ui_images.py --check` 六张裁切图全部一致（`nana-chibi` 头像
   96×96、墨迹占 78%；wave 133×194、墨迹占 67%）；momo / momo-mint 零漂移；
   `every_character_is_fully_embedded` / `every_panel_image_is_embedded` 覆盖新角色
-  （Rust 测试按约定交 CI 跑，本地不执行）。
+  （Rust 测试按约定交 CI 跑，本地不执行）。已随 `insync-v0.2.0` 发布并装到本机
+  （CI run 38415756011 六任务全绿 → 发布 run 38417313997 → 安装后二进制里逐字节
+  搜到 nana-chibi 的精灵图与面板裁切图，见 final-report §7.3）。
 
 ## Phase B — 桌宠窗口
 

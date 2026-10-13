@@ -348,6 +348,30 @@ resources/insync` 为空），`assets` 任务在另一套 Pillow/zlib 环境下�
 （3181 B）——两份 PNG 都是编译期内嵌的，所以「使用者看到的桌宠就是回退版素材」
 不靠推断；点击区域与观感的判断仍需使用者本人（同上段）。
 
+本机现已换成 **InSync 0.2.0**（发布提交 `85c785c2`，run 38415756011，2026-10-13）
+的产物，即「nana 窗帘刘海定稿 + 新角色 `nana-chibi`」这一版；六个任务全绿：
+contracts 8s / assets 18s / test-linux 43s / build-macos 6m10s / build-windows
+8m26s / docker-server 1m59s。这一轮**先走发布通道再安装**（§7.3）：从
+`gh release download insync-v0.2.0` 取回资产、`shasum -a 256 -c SHA256SUMS` 四个
+`OK`，并与 `gh run download 38415756011` 的 verify 产物逐个比对哈希相同（app
+`d3dc69b7…`、server `e1fb24ba…`），所以装到本机的字节 = 被 CI 验证过的字节 =
+公开发布的字节。安装并 ad-hoc 签名后 app = `1d24d3bb…`、server = `35a5c890…`
+（各 +18128 字节即签名段，与历轮相同差值），`codesign --verify` 对两者均通过，
+`otool` 逐 section 比对（忽略地址列）app 22/22、server 17/17 一致，负向对照
+app↔server 仅 2/22 相同。旧实例 `SIGTERM` 后 0.14 秒干净退出，替换二进制后重新
+`open ~/Applications/InSync.app`（22:57:03 启动，PID 43765，1 分 19 秒后仍在、
+RSS ~80 MB、CPU ~3%、无 crash report；数据根仍只有
+`com.ayangweb.insync/development`，配置未被改写）。旧二进制已备份到
+`/tmp/insync-prev-0.1.0/`（app `fb36a710…`、server `87ed8d23…`）以便回退。
+**直接证据**：安装后的二进制里逐字节搜到 `nana-chibi/idle.png`（2971 B）、
+`nana-chibi/celebrate.png`（4863 B）、`nana-chibi/stretch.png`（4151 B）、
+`nana-chibi_portrait.png`（5394 B）与 `nana-chibi_wave.png`（11434 B），这些
+都是编译期内嵌的，所以「切到 Q 版角色时看到的就是这一版素材」不靠推断。
+**仍需使用者本人**：当前配置的 `character` 仍是 `nana`，要在面板「设置 →
+偏好设置 → 角色」里点第三个选项才会换成 Q 版；观感（桌宠动画、方形头像不拉伸、
+空态插图）与 macOS 逐像素点击区域都要人眼/手感确认——本环境没有屏幕录制授权，
+无法在会话里截图或点桌面。
+
 ### 7.1 CI 实际运行记录（触发问题与修复）
 
 分支推送后 `insync-verify` 一共暴露出六个真实问题，均已修复并留下提交：
@@ -434,6 +458,38 @@ job 全绿**，本机安装的二进制即该 run 的产物，并在其上复验
 'workflow_dispatch' trigger`——即那是一段永远不会生效的配置。现已删除该触发器，重发路径
 改为重跑失败的那次 run（同一标签、同一提交、同样的校验），并补了契约测试防止它被无声加回。
 （已发布的 `insync-v0.1.0` 由 `1ed9d3ff` 上的旧版文件产出，那次运行未用到该触发器。）
+
+### 7.3 第二次真实发布（`insync-v0.2.0`）
+
+素材与代码在 `4d1aa90c`（`feat(insync): add the nana-chibi character`），发布提交是
+`85c785c2`（`chore(insync): release v0.2.0`：六个 manifest 与 `Cargo.lock` 里对应的
+六行版本号 0.1.0 → 0.2.0，`docs/insync/CHANGELOG.md` 的 `## Unreleased` 改为
+`## 0.2.0 - 2026-10-13`），附注标签 `insync-v0.2.0` 打在发布提交上并推送。按使用者
+的要求本机不跑任何 cargo 命令，`Cargo.lock` 的六行由脚本直接改写（`git diff --stat`
+为 6 insertions / 6 deletions，没有别的改动），正确性由 CI 的 `--locked` 构建与
+`contracts` 任务的锁文件契约共同验证。链路与结果：
+
+| 环节 | 结果 |
+| --- | --- |
+| `insync-verify` run [38415756011](https://github.com/SU0510/BongoCat/actions/runs/38415756011)（commit `85c785c2`） | 六个任务全绿：`contracts`（20 条 InSync 契约）、`assets`、`test-linux`、`build-macos`、`build-windows`、`docker-server` ✅ |
+| `insync-release` run [38417313997](https://github.com/SU0510/BongoCat/actions/runs/38417313997)（tag push） | `publish` 全部步骤 success：标签=版本校验、提交标题校验、定位该提交的 verify 运行、`gh run download`、校验和、正文合成、`gh release create` ✅ |
+| Release | https://github.com/SU0510/BongoCat/releases/tag/insync-v0.2.0（标题 `InSync 0.2.0`，非 draft、非 prerelease） |
+| 资产 | `insync-app-macos-aarch64` 16,951,200 B、`insync-app-windows-x86_64.exe` 20,630,528 B、`insync-server-macos-aarch64` 3,210,144 B、`insync-server-windows-x86_64.exe` 3,240,960 B、`SHA256SUMS` ✅ |
+
+自己动手复验：`gh release download insync-v0.2.0` 后 `shasum -a 256 -c SHA256SUMS`
+四个资产全部 `OK`；再 `gh run download 38415756011 -n insync-macos-aarch64` 取回被
+验证过的产物逐个比对，macOS 两份**哈希完全相同**（app `d3dc69b7…`、server
+`e1fb24ba…`），即「发布的字节 = 被验证的字节」。发布正文由
+`tools/insync-release.py notes 0.2.0` 从 `## 0.2.0 - 2026-10-13` 条目取出（打标签前
+先在本地跑通，20 条发布契约测试全绿）。
+
+一个与 §7.2 观察不同的事实，如实记下：**这一轮 `insync-server` 不再与上一轮逐字节
+相同**（`fcad8567…` → `e1fb24ba…`），尽管服务端源码一行未改。两份文件大小同为
+3,210,144 B，但有 1,030,297 个字节不同、分布在 62,683 段（`LC_UUID` 不同，代码段内的
+分支偏移整体位移）。可观察到的唯一输入变化是六个 crate 的版本号，而版本号会进入
+rustc 的 crate metadata 哈希，符号与代码布局随之改变——这是**推断**：本机不跑 cargo，
+没有用「只改版本号再构建一次」去证实。前几轮「server 逐字节相同」的结论只在版本号
+不变时成立，不能推广成「macOS 构建对任何改动都可复现」。
 
 ## 8. 未完成与待办（如实标注）
 
